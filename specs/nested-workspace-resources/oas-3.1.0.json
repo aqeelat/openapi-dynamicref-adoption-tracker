@@ -1,0 +1,177 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DynamicRef Nested Workspace API",
+    "version": "0.1.0",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.dynamicref.test"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/workspaces/current": {
+      "get": {
+        "summary": "Get workspace",
+        "operationId": "getWorkspace",
+        "tags": [
+          "Workspace"
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace with nested folders and linked resources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error response"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Document": {
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "title"
+        ],
+        "properties": {
+          "kind": {
+            "const": "document"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "BaseFolder": {
+        "$id": "https://example.com/schemas/BaseFolder",
+        "$dynamicAnchor": "folder",
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "children",
+          "shortcuts"
+        ],
+        "properties": {
+          "kind": {
+            "const": "folder"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Document"
+                },
+                {
+                  "$dynamicRef": "#folder"
+                }
+              ]
+            }
+          },
+          "shortcuts": {
+            "type": "array",
+            "items": {
+              "$dynamicRef": "#resource"
+            }
+          }
+        }
+      },
+      "BaseResource": {
+        "$id": "https://example.com/schemas/BaseResource",
+        "$dynamicAnchor": "resource",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/Document"
+          },
+          {
+            "$dynamicRef": "#folder"
+          }
+        ]
+      },
+      "WorkspaceFolder": {
+        "$id": "https://example.com/schemas/WorkspaceFolder",
+        "$dynamicAnchor": "folder",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseFolder"
+          },
+          {
+            "type": "object",
+            "required": [
+              "permissions"
+            ],
+            "properties": {
+              "permissions": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "read",
+                    "write",
+                    "admin"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "WorkspaceResource": {
+        "$id": "https://example.com/schemas/WorkspaceResource",
+        "$dynamicAnchor": "resource",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/Document"
+          },
+          {
+            "$ref": "#/components/schemas/WorkspaceFolder"
+          }
+        ]
+      },
+      "WorkspaceResponse": {
+        "type": "object",
+        "required": [
+          "root",
+          "related"
+        ],
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/WorkspaceFolder"
+          },
+          "related": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceResource"
+            }
+          }
+        }
+      }
+    }
+  }
+}

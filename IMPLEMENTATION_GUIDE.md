@@ -4,7 +4,9 @@ This guide is for an AI agent that is **already running inside a generator's rep
 
 > "Use ~/lab/openapi-dynamicref-adoption-tracker to implement dynamic ref in this project."
 
-The tracker repo at `~/lab/openapi-dynamicref-adoption-tracker` (or wherever the user points you) contains the test specs, compatibility results, and this guide.
+The tracker repo at `~/lab/openapi-dynamicref-adoption-tracker` (or wherever the user points you) contains validator-backed fixtures, mixed-support fixtures, compatibility results, and this guide.
+
+Do not open upstream issues or PRs from an unvalidated fixture. Use validator-backed fixtures first. If using a fixture with mixed validator support, include the validator disagreement in the issue or PR.
 
 ---
 
@@ -12,47 +14,56 @@ The tracker repo at `~/lab/openapi-dynamicref-adoption-tracker` (or wherever the
 
 `$dynamicRef` and `$dynamicAnchor` are JSON Schema 2020-12 keywords that enable recursive schema references resolved at the **point of use**, not at the point of definition.
 
-In our test pattern:
+Validated fixture patterns include recursive and nested dynamic scope. Example:
 
 ```yaml
-PaginatedTemplate:
+BaseCategory:
+  $dynamicAnchor: category
   properties:
-    items:
+    children:
       type: array
       items:
-        $dynamicRef: '#itemType'    # placeholder — resolved later
+        $dynamicRef: '#category'
 
-PaginatedAssetResponse:
+LocalizedCategory:
+  $dynamicAnchor: category
   allOf:
-    - $ref: '#/components/schemas/PaginatedTemplate'
-    - $dynamicAnchor: itemType      # binds the placeholder
-      $ref: '#/components/schemas/Asset'
+    - $ref: '#/components/schemas/BaseCategory'
+    - type: object
+      required: [displayName, locale]
+      properties:
+        displayName:
+          type: string
+        locale:
+          type: string
 ```
 
-When a generator processes `PaginatedAssetResponse`, it should:
+When a generator processes `LocalizedCategory`, it should:
 
-1. Walk into `PaginatedTemplate` via `$ref`
-2. Encounter `$dynamicRef: '#itemType'`
-3. Look up the `$dynamicAnchor: itemType` in the enclosing schema resource
-4. Resolve it to `Asset`
-5. Emit `items: Asset[]` in the output type
+1. Walk into `BaseCategory` via `$ref`
+2. Encounter `$dynamicRef: '#category'` in `children.items`
+3. Resolve it through dynamic scope to the active `LocalizedCategory` anchor
+4. Emit child nodes as the concrete extended node type, not the base type or `any`
 
 **Common bug:** generators treat `$dynamicRef` the same as `$ref` and resolve it at definition time, producing `unknown[]`, `any`, or skipping it entirely.
 
 ## Expected Correct Output
 
-For `PaginatedAssetResponse`:
+For recursive tree fixtures, the generated TypeScript should preserve recursive extension:
 
 ```typescript
-interface PaginatedAssetResponse {
-  items: Asset[];
-  total: number;
-  page: number;
-  pageSize: number;
+interface LocalizedCategory extends BaseCategory {
+  displayName: string;
+  locale: string;
+  children: LocalizedCategory[];
 }
 ```
 
-For `PaginatedUserResponse`:
+For complex nested fixtures, dynamic refs should preserve concrete nested folder/resource types instead of degrading to `any` or `unknown`.
+
+The pagination/generic-wrapper fixture follows the JSON Schema generics pattern and is validated by Hyperjump, but AJV currently disagrees. Use it with that caveat documented.
+
+For a future validated pagination pattern, the desired output would be:
 
 ```typescript
 interface PaginatedUserResponse {
@@ -63,7 +74,7 @@ interface PaginatedUserResponse {
 }
 ```
 
-**Each concrete wrapper must have its items typed to the bound schema, not a generic fallback.**
+**Dynamic refs must resolve to concrete schema types, not generic fallbacks.**
 
 ---
 
@@ -103,6 +114,8 @@ Proceed to Step 2.
 
 ## Step 2: Open or Update a GitHub Issue
 
+**Important:** Before posting the issue, confirm with the user that the content is accurate and they approve the submission. The AI disclosure in the template is honest — do not post without the user's review.
+
 ### If no issue exists
 
 Open a new issue:
@@ -111,27 +124,31 @@ Open a new issue:
 gh issue create -R <org>/<repo> --title "feat: support \$dynamicRef / \$dynamicAnchor (JSON Schema 2020-12)" --body "$(cat <<'EOF'
 ## Summary
 
-This generator does not correctly resolve `$dynamicRef` / `$dynamicAnchor` (JSON Schema 2020-12, [spec section 7.7](https://json-schema.org/draft/2020-12/json-schema-core#section-7.7)) in OpenAPI 3.1.x specs.
+This generator does not correctly preserve `$dynamicRef` / `$dynamicAnchor` semantics (JSON Schema 2020-12, [spec section 7.7](https://json-schema.org/draft/2020-12/json-schema-core#section-7.7)) for OpenAPI 3.1.x fixtures that are validator-backed or have documented mixed validator support.
 
 ## Reproduction
 
-A minimal spec demonstrating the issue is available at:
-https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/specs/sample-schema-oas-3.1.2.yaml
+Minimal fixtures demonstrating the issue are available at:
 
-The spec defines a generic `PaginatedTemplate` using `$dynamicRef: '#itemType'`, then binds it via `$dynamicAnchor` in `PaginatedAssetResponse` and `PaginatedUserResponse`.
+- Recursive category tree: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/recursive-category-tree.yaml
+- Nested workspace resources: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/nested-workspace-resources.yaml
+- Pagination/generic wrapper: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/paginated-generic.yaml
+
+These fixtures pass Redocly, openapi-spec-validator, Spectral, and swagger-cli. The recursive and nested fixtures pass AJV 2020 runtime validation. The pagination/generic fixture follows the OAI-referenced JSON Schema generics pattern and passes Hyperjump runtime validation, while AJV currently disagrees.
 
 ## Expected behavior
 
-- `PaginatedAssetResponse.items` should be typed as `Asset[]`
-- `PaginatedUserResponse.items` should be typed as `User[]`
+- Recursive children should preserve the concrete extended node type (for example `LocalizedCategory.children: LocalizedCategory[]`)
+- Nested dynamic refs should preserve concrete folder/resource types instead of falling back to `any` / `unknown`
+- Pagination wrappers should preserve concrete item types (for example `PaginatedUserResponse.items: User[]`)
 
 ## Actual behavior
 
-`items` is typed as `unknown[]` / `any` / `Array<any>` (or generation fails entirely).
+Dynamic refs are typed as `unknown`, `any`, a base schema only, or generation fails entirely.
 
 ## Why this matters
 
-`$dynamicRef` enables template-like schema patterns without duplication. OpenAPI 3.1.x adopts JSON Schema 2020-12 as its schema dialect, so generators that claim 3.1.x support should handle these keywords. This is increasingly relevant as APIs adopt OAS 3.1 for polymorphic response wrappers.
+`$dynamicRef` enables dynamic scope-aware schema reuse. OpenAPI 3.1.x adopts JSON Schema 2020-12 as its schema dialect, so generators that claim 3.1.x support should handle these keywords where the fixture is validator-backed or clearly documented as mixed-support.
 
 ## Compatibility evidence
 
@@ -139,7 +156,7 @@ A cross-generator compatibility matrix is tracked at:
 https://github.com/aqeelat/openapi-dynamicref-adoption-tracker
 
 ---
-*This issue was filed with assistance from AI tooling. The reproduction steps and spec references were verified by a human contributor.*
+*This issue was drafted with assistance from AI tooling. The submitter is responsible for reviewing and validating the contents before submission.*
 EOF
 )"
 ```
@@ -152,7 +169,9 @@ Add a comment if the issue is stale or missing context from our test specs:
 gh issue comment <issue-number> -R <org>/<repo> --body "$(cat <<'EOF'
 I've been investigating `$dynamicRef` compatibility across SDK generators and put together a minimal repro spec and compatibility matrix:
 
-- Repro spec: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/specs/sample-schema-oas-3.1.2.yaml
+- Recursive fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/recursive-category-tree.yaml
+- Complex nested fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/nested-workspace-resources.yaml
+- Pagination/generic fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/paginated-generic.yaml
 - Compatibility tracker: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker
 
 Happy to help with a PR if there's interest in fixing this.
@@ -196,9 +215,9 @@ Parse OpenAPI doc → Resolve references → Build internal model → Emit code
 
 The fix usually goes in the **Resolve references** stage. You need to:
 
-- Detect `$dynamicRef` keywords (they look like `{"$dynamicRef": "#itemType"}`)
+- Detect `$dynamicRef` keywords (for example `{"$dynamicRef": "#node"}`)
 - When encountered, walk up the schema stack to find a matching `$dynamicAnchor`
-- Replace the dynamic ref with the schema the anchor points to
+- Preserve the dynamic-scope target in the internal model so code emission can produce the concrete recursive/nested type
 - Continue processing as if it were a normal `$ref`
 
 ---
@@ -207,20 +226,22 @@ The fix usually goes in the **Resolve references** stage. You need to:
 
 Before implementing the fix, add a test that proves the bug:
 
-1. Copy the test spec from the tracker repo into the generator's test fixtures:
+1. Copy fixtures from the tracker repo into the generator's test fixtures:
 
 ```bash
-cp ~/lab/openapi-dynamicref-adoption-tracker/specs/sample-schema-oas-3.1.2.yaml ./test/fixtures/dynamicref-sample.yaml
+cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/recursive-category-tree.yaml ./test/fixtures/recursive-category-tree.yaml
+cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/nested-workspace-resources.yaml ./test/fixtures/nested-workspace-resources.yaml
+cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/paginated-generic.yaml ./test/fixtures/paginated-generic.yaml
 ```
 
 2. Write a test that generates code from this spec and asserts correct types:
 
 ```typescript
 // Pseudocode — adapt to the generator's test framework
-const spec = loadSpec('test/fixtures/dynamicref-sample.yaml');
+const spec = loadSpec('test/fixtures/recursive-category-tree.yaml');
 const output = generate(spec);
 
-expect(output).toContain('items: Asset[]');
+expect(output).toContain('children: LocalizedCategory[]');
 expect(output).not.toContain('items: unknown[]');
 expect(output).not.toContain('items: any');
 ```
@@ -231,26 +252,30 @@ expect(output).not.toContain('items: any');
 
 ## Step 5: Implement the Fix
 
-Implement `$dynamicRef` resolution in the parser/reference resolver. The general algorithm:
+Implement `$dynamicRef` resolution in the parser/reference resolver. This must follow JSON Schema 2020-12 dynamic scope semantics (not static `$ref` semantics).
+
+The general algorithm:
 
 ```
-function resolveDynamicRef(schema, refName, contextStack):
-    for frame in reverse(contextStack):
-        if frame has $dynamicAnchor == refName:
-            return frame (or the schema frame.$ref points to)
+function resolveDynamicRef(schema, refName, dynamicScope):
+    // Walk the dynamic scope from innermost to outermost
+    // The dynamic scope is the runtime evaluation path, not the static definition site
+    for resource in reverse(dynamicScope):
+        if resource declares $dynamicAnchor == refName:
+            return the schema that resource points to
 
-    for resource in schemaResources:
-        if resource has $dynamicAnchor == refName:
-            return resource
-
-    return { type: "any" }
+    // If no match found, the dynamic ref is unresolvable
+    // Do NOT silently degrade to `any` — emit a diagnostic error or warning
+    // so that the generator user knows the ref could not be resolved
+    raise DynamicRefUnresolvedError(refName)
 ```
 
 Key considerations:
 
-- **Context stack matters.** `$dynamicRef` must be resolved relative to the schema resource that **uses** the template, not the one that **defines** it. This is the critical difference from `$ref`.
-- **allOf composition.** In our pattern, the `$dynamicAnchor` sits alongside `$ref` in an `allOf`. Make sure your resolver processes all `allOf` entries and collects anchors before resolving refs.
+- **Dynamic scope, not static scope.** `$dynamicRef` is resolved along the runtime evaluation path (the dynamic scope), which tracks which schema resources are active when the ref is encountered. This is fundamentally different from `$ref` which is a static link. If the generator only has a static reference graph, it will need to simulate the dynamic scope by tracking schema evaluation order.
+- **Composition matters.** Validated recursive fixtures use composed schemas with a `$dynamicAnchor` at the composed schema root. The pagination fixture uses the JSON Schema generics pattern: a fallback dynamic anchor in the template and concrete dynamic anchors in each response schema's `$defs`.
 - **Don't break existing $ref handling.** `$dynamicRef` is a separate keyword — make sure normal `$ref` resolution is untouched.
+- **Don't silently degrade to `any`.** If a dynamic ref cannot be resolved, emit a clear diagnostic (warning or error) rather than falling back to `any` / `unknown`. Silent degradation is exactly the problem this repo is trying to eliminate.
 
 ---
 
@@ -260,30 +285,29 @@ Key considerations:
 
 2. **Run the full existing test suite.** Nothing should regress.
 
-3. **Run the full matrix from the tracker repo** against your local build:
+3. **Run the validated fixtures from the tracker repo** against your local build:
 
 ```bash
 TRACKER=~/lab/openapi-dynamicref-adoption-tracker
 
 # Adapt these commands to the generator's CLI
-<generator-binary> --input $TRACKER/specs/sample-schema-oas-3.1.0.yaml --output /tmp/dynamicref-test/3.1.0
-<generator-binary> --input $TRACKER/specs/sample-schema-oas-3.1.1.yaml --output /tmp/dynamicref-test/3.1.1
-<generator-binary> --input $TRACKER/specs/sample-schema-oas-3.1.2.yaml --output /tmp/dynamicref-test/3.1.2
-<generator-binary> --input $TRACKER/specs/sample-schema-oas-3.2.0.yaml --output /tmp/dynamicref-test/3.2.0
+<generator-binary> --input $TRACKER/fixtures/recursive-category-tree.yaml --output /tmp/dynamicref-test/recursive-category-tree
+<generator-binary> --input $TRACKER/fixtures/nested-workspace-resources.yaml --output /tmp/dynamicref-test/nested-workspace-resources
+<generator-binary> --input $TRACKER/fixtures/paginated-generic.yaml --output /tmp/dynamicref-test/paginated-generic
 ```
 
 4. **Typecheck each generated output:**
 
 ```bash
-for v in 3.1.0 3.1.1 3.1.2 3.2.0; do
-  echo "=== $v ==="
-  cd /tmp/dynamicref-test/$v && tsc --noEmit --strict
+for fixture in recursive-category-tree nested-workspace-resources paginated-generic; do
+  echo "=== $fixture ==="
+  cd /tmp/dynamicref-test/$fixture && tsc --noEmit --strict
 done
 ```
 
 5. **Inspect the types.** Verify:
-   - `PaginatedAssetResponse.items` is `Asset[]`
-   - `PaginatedUserResponse.items` is `User[]`
+   - Recursive children preserve the concrete extended node type
+   - Nested dynamic refs preserve concrete folder/resource types
    - No `any`, `unknown`, or generic fallbacks
 
 ---
@@ -326,34 +350,34 @@ Fixes #<issue-number>
 
 ## Problem
 
-Dynamic references were either ignored or resolved at definition time, producing `unknown[]`, `any`, or `Array<any>` for parameterized schemas like generic pagination wrappers.
+Dynamic references were either ignored or resolved at definition time, producing `unknown[]`, `any`, or base-only types for recursive/nested schemas that should preserve the active dynamic scope.
 
 ## Solution
 
 - Added `$dynamicRef` detection in the schema reference resolver
-- Implemented context-stack-aware resolution to find matching `$dynamicAnchor` at the point of use
-- Added test coverage using a spec with `PaginatedTemplate` + concrete bindings
+- Implemented dynamic-scope-aware resolution to find the active `$dynamicAnchor` target
+- Added test coverage using recursive, nested, and pagination-generic dynamicRef fixtures
 
 ## Testing
 
-- New test: generates code from a `$dynamicRef` spec and asserts correct item types
+- New test: generates code from `$dynamicRef` fixtures and asserts correct recursive/nested types
 - Existing test suite: all passing, no regressions
-- Verified against OpenAPI 3.1.0, 3.1.1, 3.1.2, and 3.2.0 specs from https://github.com/aqeelat/openapi-dynamicref-adoption-tracker
+- Verified against fixtures from https://github.com/aqeelat/openapi-dynamicref-adoption-tracker
 
 ## Before
 
 ```typescript
-items: unknown[];
+children: unknown[];
 ```
 
 ## After
 
 ```typescript
-items: Asset[];
+children: LocalizedCategory[];
 ```
 
 ---
-*This PR was authored with assistance from AI tooling. The code changes, tests, and rationale were reviewed and verified by a human contributor.*
+*This PR was drafted with assistance from AI tooling. The submitter is responsible for reviewing and validating the contents before submission.*
 EOF
 )"
 ```
@@ -369,7 +393,7 @@ After the PR is open, update the Outreach table in the tracker repo's `README.md
 3. Set the status to `pr-open`.
 4. Set the date to today (YYYY-MM-DD).
 
-If the fix was verified across all spec versions, update `state-of-the-union.md` with the new results.
+If the fix was verified against the fixtures, update `state-of-the-union.md` with the new results.
 
 ---
 
@@ -381,12 +405,12 @@ After opening an issue or PR, help it gain traction with the maintainers. Most o
 
 - **Lead with impact.** Explain why this matters in practice (pagination wrappers, generic response types, reducing schema duplication). Don't assume they care about spec compliance for its own sake.
 - **Provide a minimal repro.** The spec in this repo is intentionally small — link directly to it. Don't make them find or build a test case.
-- **Show the before/after.** Concrete type output (`unknown[]` vs `Asset[]`) is more convincing than abstract descriptions.
+- **Show the before/after.** Concrete type output (`unknown[]` vs `LocalizedCategory[]`) is more convincing than abstract descriptions.
 
 ### Write reviewable PRs
 
 - **Keep PRs small.** Only change the reference resolver and add tests. Don't refactor unrelated code in the same PR.
-- **Explain the algorithm.** Include a comment or PR description explaining how `$dynamicRef` resolution differs from `$ref` (context stack vs. direct lookup). Most reviewers won't know this distinction.
+- **Explain the algorithm.** Include a comment or PR description explaining how `$dynamicRef` resolution differs from `$ref` (dynamic scope vs. static reference lookup). Most reviewers won't know this distinction.
 - **Show no regressions.** Run the full existing test suite and include the passing output in the PR. Maintainers are protective of CI.
 
 ### Engage on the right channels
@@ -413,5 +437,6 @@ After opening an issue or PR, help it gain traction with the maintainers. Most o
 
 - **JSON Schema 2020-12 Core** — `$dynamicRef` / `$dynamicAnchor`: https://json-schema.org/draft/2020-12/json-schema-core#section-7.7
 - **OpenAPI 3.1.0** — uses JSON Schema 2020-12 as its schema dialect
-- **Test specs in the tracker repo:** `specs/sample-schema-oas-3.1.{0,1,2}.yaml` and `specs/sample-schema-oas-3.2.0.yaml`
+- **Validated fixtures in the tracker repo:** `fixtures/recursive-category-tree.yaml` and `fixtures/nested-workspace-resources.yaml`
+- **Mixed-support generic fixture:** `fixtures/paginated-generic.yaml`
 - **Compatibility results:** `state-of-the-union.md`

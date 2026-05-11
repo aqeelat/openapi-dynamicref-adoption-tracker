@@ -2,100 +2,106 @@
 
 ## Executive Summary
 
-- This repo tests OpenAPI polymorphism via JSON Schema `$dynamicRef`/`$dynamicAnchor` in a generic pagination wrapper.
-- We ran a version matrix across OAS `3.1.0`, `3.1.1`, `3.1.2`, and `3.2.0` using Orval, OpenAPI Generator, and Swagger Codegen.
-- For `3.1.x`, generation mostly succeeds but emitted SDK types are degraded for dynamic-ref item typing.
-- For `3.2.0`, support diverges significantly: Orval generates, OpenAPI Generator and Swagger Codegen fail at parse/validation.
+- This repo investigates OpenAPI `$dynamicRef` / `$dynamicAnchor` behavior across validators and SDK generators.
+- We now split the work into two stages: fixture validation first, SDK generator type fidelity second.
+- Two dynamicRef fixtures are currently validator-backed: recursive tree extension and complex nested resource graphs with multiple dynamic anchors.
+- The pagination/generic-wrapper fixture now follows the JSON Schema generics pattern referenced from OAI #3601. It passes Hyperjump runtime validation, but AJV 2020 still resolves it incorrectly.
+- Initial TypeScript SDK results show generators parse or emit code in many cases, but none preserve the intended dynamicRef item typing.
 
-## What We Tested
+## Fixtures
 
-- Specs:
-  - `specs/sample-schema-oas-3.1.0.yaml`
-  - `specs/sample-schema-oas-3.1.1.yaml`
-  - `specs/sample-schema-oas-3.1.2.yaml`
-  - `specs/sample-schema-oas-3.2.0.yaml`
-- Common schema pattern:
-  - `PaginatedTemplate.items` uses `$dynamicRef: '#itemType'`
-  - `PaginatedAssetResponse` / `PaginatedUserResponse` bind `itemType` with `$dynamicAnchor`
-- Tools:
-  - Orval `v8.9.1`
-  - OpenAPI Generator CLI `7.22.0` (`typescript-fetch`)
-  - Swagger Codegen CLI v3 Docker (`typescript-fetch`)
+| Fixture | Purpose | Status |
+|---|---|---|
+| `fixtures/baseline-duplicated-pagination.yaml` | Control case with explicit paginated wrappers | Validated control |
+| `fixtures/paginated-generic.yaml` | Generic pagination wrapper using `$dynamicRef: '#itemType'` | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
+| `fixtures/recursive-category-tree.yaml` | `$dynamicRef` recursive override using `$dynamicAnchor: category` | Validated dynamicRef |
+| `fixtures/nested-workspace-resources.yaml` | Nested structures with multiple dynamic refs (`folder`, `resource`) | Validated dynamicRef |
 
-## Generation Matrix
+## Validation Matrix
 
-| Tool | OAS 3.1.0 | OAS 3.1.1 | OAS 3.1.2 | OAS 3.2.0 |
+OpenAPI document validation:
+
+| Fixture | Redocly | openapi-spec-validator | Spectral | swagger-cli |
 |---|---|---|---|---|
-| Orval | Pass | Pass | Pass | Pass |
-| OpenAPI Generator | Pass | Pass | Pass | Fail |
-| Swagger Codegen v3 | Pass | Pass | Pass | Fail |
+| Baseline duplicated pagination | Pass | Pass | Pass | Pass |
+| Paginated generic | Pass | Pass | Pass | Pass |
+| Recursive category tree | Pass | Pass | Pass | Pass |
+| Nested workspace resources | Pass | Pass | Pass | Pass |
 
-Notable failure behavior:
+JSON Schema runtime validation:
 
-- OpenAPI Generator `3.2.0`: parse/validation failure, reports `openapi` as unexpected and expects Swagger 2 style attributes (`logs/openapi-generator-3.2.0.log`).
-- Swagger Codegen `3.2.0`: parser fails early with `missing OpenAPI input!` after `SwaggerCompatConverter` errors (`logs/swagger-codegen-3.2.0.log`).
+| Fixture | AJV 2020 | Hyperjump 2020-12 | Result |
+|---|---|---|---|
+| Baseline duplicated pagination | Pass | Not tested | Pass |
+| Paginated generic | Fails valid user/group pages | Passes valid/invalid user and group pages | Mixed validator support |
+| Recursive category tree | Pass | Not tested | Pass |
+| Nested workspace resources | Pass | Not tested | Pass |
 
-## Typecheck Matrix (`tsc --noEmit --strict`)
+## Pagination Generic Finding
 
-| Tool | OAS 3.1.0 | OAS 3.1.1 | OAS 3.1.2 | OAS 3.2.0 |
-|---|---|---|---|---|
-| Orval | Pass | Pass | Pass | Pass |
-| OpenAPI Generator | Pass | Pass | Pass | N/A (generation failed) |
-| Swagger Codegen v3 | Fail | Fail | Fail | N/A (generation failed) |
+The current pagination fixture follows the JSON Schema generics pattern referenced by [OAI #3601](https://github.com/OAI/OpenAPI-Specification/issues/3601) and [Using Dynamic References to Support Generic Types](https://json-schema.org/blog/posts/dynamicref-and-generics):
+
+```yaml
+PaginatedTemplate:
+  $defs:
+    itemType:
+      $dynamicAnchor: itemType
+      not: {}
+  properties:
+    items:
+      type: array
+      items:
+        $dynamicRef: '#itemType'
+
+PaginatedUserResponse:
+  $defs:
+    itemType:
+      $dynamicAnchor: itemType
+      $ref: '#/components/schemas/User'
+  $ref: '#/components/schemas/PaginatedTemplate'
+```
+
+Hyperjump evaluates this as intended: user pages require `User[]`, group pages require `Group[]`, and invalid item shapes fail. AJV does not evaluate this as a generic type-parameter binding and instead resolves the dynamic ref back to the pagination template, causing valid item objects to fail with missing pagination fields.
+
+This means the claim that `$dynamicRef` can model generic wrappers is supported by the OAI discussion and by Hyperjump, but tool support is mixed. Upstream generator issues should include the validator matrix rather than relying on one validator.
+
+## TypeScript SDK Matrix (Pagination Generic Fixture)
+
+| Tool | Generator | OpenAPI Parse / Generate | Strict Typecheck | DynamicRef Fidelity | Verdict |
+|---|---|---|---|---|---|
+| Orval `v8.9.1` | TypeScript fetch | Generates all tested OAS versions | Pass | `items` remains `unknown[]` | Not supported |
+| OpenAPI Generator CLI `7.22.0` | `typescript-fetch` | Generates OAS `3.1.x`; fails `3.2.0` | Pass for generated `3.1.x` output | `items` becomes `Array<any>` | Not supported |
+| Swagger Codegen CLI v3 | `typescript-fetch` | Generates OAS `3.1.x`; fails `3.2.0` | Fails strict TSC for `3.1.x` | Wrappers degrade to `any` | Not supported |
 
 Swagger strict failure (all `3.1.x`):
 
-- `generated/swagger-codegen/<version>/api.ts(57,15): TS2564 Property 'configuration' has no initializer...`
-
-## Type Quality Findings (DynamicRef Polymorphism)
-
-Across successful generation runs, no tested tool emits robust item-typed wrappers from `$dynamicRef`:
-
-- Orval: `items` remains `unknown[]` in `PaginatedTemplate` (`generated/orval/3.2.0/model/paginatedTemplate.ts`).
-- OpenAPI Generator: `items` becomes `Array<any>` and wrapper shape is flattened with item fields (`generated/openapi-generator/3.1.2/models/PaginatedAssetResponse.ts`).
-- Swagger Codegen: wrappers degrade to `any` (`generated/swagger-codegen/3.1.2/api.ts`).
-
-## Rubric Scores
-
-Per `(tool, version)` quality grade:
-
-- Orval: **B** for `3.1.0`, `3.1.1`, `3.1.2`, `3.2.0` (generates + typechecks, degraded type fidelity)
-- OpenAPI Generator: **B** for `3.1.0`, `3.1.1`, `3.1.2`; **D** for `3.2.0` (generation failure)
-- Swagger Codegen: **D** for all tested versions (degraded output + strict compile failures for `3.1.x`, generation failure for `3.2.0`)
+```text
+generated/swagger-codegen/<version>/api.ts(57,15): error TS2564: Property 'configuration' has no initializer and is not definitely assigned in the constructor.
+```
 
 ## Recommendation
 
-- Today: ship duplicated concrete wrappers or hybrid dual-output mode in production SDK pipelines.
-- Parallel track: use this repo to file focused issues/PRs on dynamic-ref support in parsers and generators.
-- Compatibility stance: treat `3.2.0` as opt-in experimental until parser/generator support improves.
+- Use duplicated concrete wrappers or a hybrid compatibility strategy for production SDK pipelines today.
+- Use validator-backed recursive and complex nested fixtures for upstream `$dynamicRef` parser/codegen work.
+- Use the pagination/generic-wrapper fixture with the documented validator caveat: Hyperjump validates it; AJV currently does not.
+- Treat OAS `3.2.0` as experimental for generator compatibility until parser support improves.
 
 ## Outreach
 
 Issues and PRs opened in upstream generator repos are tracked in the [Outreach table in README.md](README.md#-outreach).
 
-## Logs and Artifacts
+## How to Reproduce
 
-- Orval matrix log: `logs/orval-matrix.log`
-- OpenAPI Generator logs:
-  - `logs/openapi-generator-3.1.0.log`
-  - `logs/openapi-generator-3.1.1.log`
-  - `logs/openapi-generator-3.1.2.log`
-  - `logs/openapi-generator-3.2.0.log`
-- Swagger Codegen logs:
-  - `logs/swagger-codegen-3.1.0.log`
-  - `logs/swagger-codegen-3.1.1.log`
-  - `logs/swagger-codegen-3.1.2.log`
-  - `logs/swagger-codegen-3.2.0.log`
-- Typecheck logs:
-  - `logs/typecheck-orval-3.1.0.log`
-  - `logs/typecheck-orval-3.1.1.log`
-  - `logs/typecheck-orval-3.1.2.log`
-  - `logs/typecheck-orval-3.2.0.log`
-  - `logs/typecheck-openapi-generator-3.1.0.log`
-  - `logs/typecheck-openapi-generator-3.1.1.log`
-  - `logs/typecheck-openapi-generator-3.1.2.log`
-  - `logs/typecheck-openapi-generator-3.2.0.log`
-  - `logs/typecheck-swagger-codegen-3.1.0.log`
-  - `logs/typecheck-swagger-codegen-3.1.1.log`
-  - `logs/typecheck-swagger-codegen-3.1.2.log`
-  - `logs/typecheck-swagger-codegen-3.2.0.log`
+Run all fixture validators:
+
+```bash
+./scripts/validate-fixtures.sh
+```
+
+Run the current SDK generation matrix:
+
+```bash
+./scripts/run-matrix.sh
+```
+
+Full logs and generated output are not tracked in git (see `.gitignore`).

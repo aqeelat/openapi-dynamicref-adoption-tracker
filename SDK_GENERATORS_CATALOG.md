@@ -4,7 +4,7 @@ Captured from local tool discovery commands.
 
 ## OpenAPI Generator
 
-- Source: `logs/openapi-generator-generators.log`
+- Source: `openapi-generator-cli list` (captured locally, not tracked in git)
 - Count: 161
 
 - `ada`
@@ -171,7 +171,7 @@ Captured from local tool discovery commands.
 
 ## Swagger Codegen v3
 
-- Source: `logs/swagger-codegen-langs.log`
+- Source: `swagger-codegen-cli langs` (captured locally, not tracked in git)
 - Count: 41
 
 - `dart`

@@ -1,236 +1,114 @@
-# OpenAPI DynamicRef State-of-the-Union Runbook
+# Runbook: Validating Fixtures and Rerunning the SDK Matrix
 
-This document is an execution runbook for another agent to assess what happens when we represent generic wrappers in OpenAPI 3.1 using `$dynamicRef`/`$dynamicAnchor`.
+This document explains how to reproduce the validation and SDK generation results tracked in this repo.
 
-The goal is to compare:
+## Prerequisites
 
-- current duplicated-wrapper schemas (works with most generators today), and
-- dynamic-ref template schemas (standards-aligned, but uneven tooling support).
+- Node.js (v18+)
+- Docker (for Swagger Codegen v3)
+- npm or bun
+- `uv` for `openapi-spec-validator` (`brew install uv` or see https://docs.astral.sh/uv/)
 
----
+Install local validation dependencies:
 
-## 1) Scope and Success Criteria
-
-### Questions to answer
-
-1. Do validators correctly evaluate dynamic references in our sample specs?
-2. Which SDK generators can ingest dynamic-ref specs without breaking?
-3. Which generators emit useful types vs degraded/incorrect types?
-4. Is a dual-output strategy needed (compat mode + dynamic mode)?
-
-### Required outputs
-
-- A markdown report `state-of-the-union.md` with:
-  - tool/version matrix,
-  - pass/fail by stage,
-  - generated type quality notes,
-  - recommendation for rollout.
-- Artifact folder containing:
-  - input specs,
-  - generation logs,
-  - generated SDK outputs,
-  - compile/test logs.
-
----
-
-## 2) Repository Layout To Create
-
-Create this structure under `~/lab/openapi-dynamicref-test`:
-
-```text
-.
-├── specs/
-│   ├── baseline-duplicated.yaml
-│   ├── dynamicref-template.yaml
-│   └── dynamicref-hybrid.yaml
-├── instances/
-│   ├── asset-page.valid.json
-│   ├── user-page.valid.json
-│   └── invalid-mismatched-item.invalid.json
-├── tools/
-│   ├── orval/
-│   ├── openapi-generator/
-│   ├── swagger-codegen/
-│   └── extra/
-├── generated/
-├── logs/
-└── state-of-the-union.md
+```bash
+npm install --no-save ajv js-yaml @hyperjump/json-schema
 ```
 
----
+## Step 0: Build Versioned Specs
 
-## 3) Spec Fixtures To Author
+Fixtures under `fixtures/` are the authored source-of-truth scenarios. Generated specs under `specs/` are derived from fixtures for each OAS version.
 
-## 3.1 Baseline: duplicated wrappers
+```bash
+node scripts/build-specs.mjs
+```
 
-`specs/baseline-duplicated.yaml`
+## Step 1: Validate OpenAPI Documents
 
-- OpenAPI `3.1.0`
-- `components/schemas` includes:
-  - `Asset`, `User`,
-  - `PaginatedAssetResponse` (duplicate wrapper with `items: Asset[]`),
-  - `PaginatedUserResponse` (duplicate wrapper with `items: User[]`).
-- Paths:
-  - `/assets` returns `PaginatedAssetResponse`
-  - `/users` returns `PaginatedUserResponse`
+Run all OpenAPI document validators:
 
-Purpose: control case known to work in mainstream generators.
+```bash
+./scripts/validate-openapi.sh
+```
 
-## 3.2 Dynamic template
+This runs:
 
-`specs/dynamicref-template.yaml`
+```bash
+npx --yes @redocly/cli lint <fixture>
+uvx openapi-spec-validator <fixture>
+npx --yes @stoplight/spectral-cli lint <fixture>
+npx --yes @apidevtools/swagger-cli validate <fixture>
+```
 
-- OpenAPI `3.1.0`
-- Introduce template schema:
-  - `PaginatedResponse` with `$dynamicAnchor: itemType`
-  - `items` references `{"$dynamicRef":"#itemType"}` (or equivalent structure, depending on chosen pattern)
-- Introduce concrete instantiations:
-  - `PaginatedAssetResponse` references template and binds `itemType` to `Asset`
-  - `PaginatedUserResponse` references template and binds `itemType` to `User`
-- Same paths as baseline.
+Expected current result: all fixtures pass all four OpenAPI document validators.
 
-Purpose: standards-aligned dynamic reference encoding.
+## Step 2: Validate JSON Schema Runtime Behavior
 
-## 3.3 Hybrid compatibility
+Run JSON Schema runtime checks:
 
-`specs/dynamicref-hybrid.yaml`
+```bash
+node scripts/validate-jsonschema.mjs
+```
 
-- Includes dynamic template pattern from 3.2
-- Adds explicit concrete aliases or duplicated concrete schemas for compatibility
-- Optional vendor extension hints allowed (for experiment only), e.g. `x-template-of` metadata
+Expected current result:
 
-Purpose: evaluate migration strategy when some tools ignore dynamic refs.
+| Fixture | Runtime Result |
+|---|---|
+| `baseline-duplicated-pagination.yaml` | AJV passes |
+| `paginated-generic.yaml` | AJV fails valid user/group pages; Hyperjump passes valid/invalid user and group cases |
+| `recursive-category-tree.yaml` | AJV passes |
+| `nested-workspace-resources.yaml` | AJV passes |
 
----
+## Step 3: Run All Fixture Validators
 
-## 4) Validation Stage
+```bash
+./scripts/validate-fixtures.sh
+```
 
-Run at least two validators with JSON Schema 2020-12 support.
+This runs both the OpenAPI document validators and JSON Schema runtime checks.
 
-Recommended:
+## Step 4: Run the Current SDK Generation Matrix
 
-- AJV CLI / Node API
-- One additional validator implementation from a different ecosystem
+The SDK matrix uses generated specs under `specs/<fixture>/oas-<version>.json`.
 
-For each spec:
+```bash
+./scripts/run-matrix.sh
+```
 
-1. Validate the OpenAPI document structure (if tool supports it).
-2. Validate sample instances against relevant response schemas:
-   - valid asset page
-   - valid user page
-   - intentionally invalid payload (wrong item type)
+Logs go to `logs/`, generated output to `generated/`. Both are gitignored local artifacts.
 
-Record in `logs/validation-*.log`:
+## Step 5: Inspect Generated Types
 
-- validator version,
-- whether `$dynamicRef` is recognized,
-- pass/fail with reasons.
+Check whether generated models preserve concrete dynamicRef types:
 
----
+```bash
+# Orval
+grep -n "items" generated/orval/paginated-generic/3.1.2/model/paginatedTemplate.ts
 
-## 5) SDK Generation Matrix
+# OpenAPI Generator
+grep -n "items" generated/openapi-generator/paginated-generic/3.1.2/models/PaginatedUserResponse.ts
 
-Run generation for each fixture spec across multiple tools.
+# Swagger Codegen
+grep -n "items" generated/swagger-codegen/paginated-generic/3.1.2/api.ts
+```
 
-## 5.1 Required tools
+For the pagination generic fixture, the desired result is `items: User[]` for user pages and `items: Group[]` for group pages. Current generator output degrades to `unknown[]`, `Array<any>`, or `any`.
 
-- Orval
-- openapi-generator
-- swagger-codegen (if feasible in environment)
+## Tool Versions
 
-## 5.2 Optional additional tools
+These are the versions used for the initial SDK matrix:
 
-- Another TypeScript-focused generator
-- Another JVM/.NET generator
+| Tool | Version | Generator |
+|---|---|---|
+| Orval | v8.9.1 | fetch |
+| OpenAPI Generator CLI | 7.22.0 | typescript-fetch |
+| Swagger Codegen CLI v3 | Docker image `swaggerapi/swagger-codegen-cli-v3` | typescript-fetch |
 
-For each combination `(tool, spec)`:
+## Updating Results
 
-1. Attempt generation.
-2. Capture stdout/stderr to `logs/<tool>-<spec>.log`.
-3. Save outputs under `generated/<tool>/<spec>/`.
+After running validation or generation:
 
-Record:
-
-- generation success/failure,
-- parse/validation warnings,
-- model names emitted,
-- whether true generics are emitted,
-- whether concrete aliases are emitted,
-- obvious type degradation (`any`, `unknown`, empty schemas).
-
----
-
-## 6) Compile/Typecheck Stage
-
-For each generated TypeScript SDK output:
-
-1. Add minimal `tsconfig.json` with strict mode enabled.
-2. Add a tiny usage test that calls each endpoint and asserts inferred response item type.
-3. Run `tsc --noEmit`.
-
-Capture logs under `logs/typecheck-*.log`.
-
-Note whether the following is true:
-
-- `/assets` response items inferred as `Asset[]`
-- `/users` response items inferred as `User[]`
-- no unsafe fallback types where stronger types are expected
-
----
-
-## 7) Scoring Rubric
-
-Use this rubric in `state-of-the-union.md`.
-
-Per `(tool, spec)`:
-
-- `A` = Generates + compiles + correct types
-- `B` = Generates + compiles but degraded types
-- `C` = Generates with heavy warnings/manual fixes needed
-- `D` = Fails generation or unusable output
-
-Add one-line rationale for each grade.
-
----
-
-## 8) Report Template
-
-Create `state-of-the-union.md` with these sections:
-
-1. Executive Summary
-2. Tool Versions
-3. Validation Results
-4. Generation Matrix
-5. Type Quality Findings
-6. Risks and Compatibility Gaps
-7. Recommended Rollout Strategy
-8. Appendix (commands and logs index)
-
-Include a final recommendation with one of:
-
-- keep duplicated wrappers only,
-- ship dynamic-ref behind feature flag,
-- ship hybrid dual-output mode,
-- block rollout pending specific tool fixes.
-
----
-
-## 9) Guardrails
-
-- Do not modify production specs in this analysis workspace.
-- Keep all experiments in this folder.
-- Pin and record tool versions for reproducibility.
-- Keep commands deterministic and scriptable.
-- If a tool crashes, preserve full logs rather than summarizing only.
-
----
-
-## 10) Suggested Execution Order
-
-1. Author the 3 fixture specs.
-2. Add sample instances.
-3. Run validator matrix.
-4. Run SDK generator matrix.
-5. Run TS typecheck tests.
-6. Fill `state-of-the-union.md` using rubric.
-7. Provide final recommendation and next actions.
+1. Update `README.md` results tables with new pass/fail statuses
+2. Update `state-of-the-union.md` with any new findings
+3. Update the Outreach table if issues/PRs are involved
+4. Include inline excerpts of generated types as evidence (do not commit raw logs)
