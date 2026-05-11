@@ -118,16 +118,22 @@ Issues and PRs opened in upstream generator repos are tracked in the [Outreach t
 
 ## How to Reproduce
 
-Run all fixture validators:
+**Stage 1** (run when fixtures change):
 
 ```bash
-./scripts/validate-fixtures.sh
+./scripts/validate-and-build.sh
 ```
 
-Run the current SDK generation matrix:
+**Stage 2** (run when generator versions change, or after Stage 1):
 
 ```bash
 ./scripts/run-matrix.sh
+```
+
+**Optional** — JSON Schema runtime validation (standalone research, not in pipeline):
+
+```bash
+node scripts/validate-jsonschema.mjs
 ```
 
 Full logs and generated output are not tracked in git (see `.gitignore`).

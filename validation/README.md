@@ -7,14 +7,19 @@ Validator categories:
 | Category | Purpose |
 |---|---|
 | OpenAPI document validators | Confirm the API description is structurally valid OpenAPI |
-| JSON Schema runtime validators | Confirm `$dynamicRef` / `$dynamicAnchor` evaluate as intended for sample instances; classify validator disagreements |
+| JSON Schema runtime validators | Investigate `$dynamicRef` / `$dynamicAnchor` runtime resolution; classify validator disagreements |
 
-Current commands:
+Pipeline commands:
+
+| Stage | Command | When to run |
+|---|---|---|
+| Stage 1 | `./scripts/validate-and-build.sh` | After changing fixtures |
+| Stage 2 | `./scripts/run-matrix.sh` | After changing generator versions |
+
+Standalone research:
 
 ```bash
-./scripts/validate-openapi.sh
 node scripts/validate-jsonschema.mjs
-./scripts/validate-fixtures.sh
 ```
 
 Do not present one validator as authoritative. If validators disagree, include the disagreement in upstream issues and classify it as mixed validator support.

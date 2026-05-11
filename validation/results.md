@@ -4,6 +4,8 @@ Last recorded validation: 2026-05-11
 
 ## OpenAPI Document Validators
 
+Run via `scripts/validate-openapi.sh` (part of Stage 1 pipeline).
+
 | Fixture | Redocly | openapi-spec-validator | Spectral | swagger-cli |
 |---|---|---|---|---|
 | `baseline-duplicated-pagination.yaml` | Pass | Pass | Pass | Pass |
@@ -12,6 +14,8 @@ Last recorded validation: 2026-05-11
 | `nested-workspace-resources.yaml` | Pass | Pass | Pass | Pass |
 
 ## JSON Schema Runtime Validation
+
+Run via `node scripts/validate-jsonschema.mjs` (standalone research tool, not part of the pipeline).
 
 Validators: AJV 2020 and Hyperjump 2020-12
 

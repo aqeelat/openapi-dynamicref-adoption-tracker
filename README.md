@@ -107,11 +107,11 @@ fixtures/                      Authored source-of-truth scenarios
 specs/                         Generated OAS-version matrix specs
   <fixture>/oas-<version>.json
 scripts/
+  validate-and-build.sh        Stage 1: validate fixtures + rebuild specs (run when fixtures change)
+  run-matrix.sh                Stage 2: SDK generation + typecheck (run when generator versions change)
+  validate-openapi.sh          OpenAPI doc validators (Redocly, openapi-spec-validator, Spectral, swagger-cli)
   build-specs.mjs              Generates specs/ from fixtures/
-  run-matrix.sh                Full generation + typecheck matrix runner
-  validate-fixtures.sh         Runs OpenAPI + JSON Schema fixture validators
-  validate-openapi.sh          Runs Redocly, openapi-spec-validator, Spectral, swagger-cli
-  validate-jsonschema.mjs      Runs AJV 2020 and Hyperjump runtime validation checks
+  validate-jsonschema.mjs      Standalone: AJV + Hyperjump runtime validation (not in pipeline)
 validation/                    Validation notes and results
 LICENSE                        MIT
 orval.config.ts                Orval generation matrix config
