@@ -3,10 +3,10 @@
 ## Executive Summary
 
 - This repo investigates OpenAPI `$dynamicRef` / `$dynamicAnchor` behavior across validators and SDK generators.
-- We now split the work into two stages: fixture validation first, SDK generator type fidelity second.
+- We split the work into two stages: fixture validation first, SDK generator type fidelity second.
 - Two dynamicRef fixtures are currently validator-backed: recursive tree extension and complex nested resource graphs with multiple dynamic anchors.
-- The pagination/generic-wrapper fixture now follows the JSON Schema generics pattern referenced from OAI #3601. It passes Hyperjump runtime validation, but AJV 2020 still resolves it incorrectly.
-- Initial TypeScript SDK results show generators parse or emit code in many cases, but none preserve the intended dynamicRef item typing.
+- The pagination/generic-wrapper fixture follows the JSON Schema generics pattern referenced from OAI #3601. It passes Hyperjump runtime validation, but AJV 2020 still resolves it incorrectly.
+- TypeScript SDK results across all 4 fixtures confirm: no tested tool preserves `$dynamicRef` type fidelity. Generators either fail to parse specs containing `$dynamicAnchor`, or emit `unknown[]`/`any` for dynamic ref slots.
 
 ## Fixtures
 
@@ -65,19 +65,44 @@ Hyperjump evaluates this as intended: user pages require `User[]`, group pages r
 
 This means the claim that `$dynamicRef` can model generic wrappers is supported by the OAI discussion and by Hyperjump, but tool support is mixed. Upstream generator issues should include the validator matrix rather than relying on one validator.
 
-## TypeScript SDK Matrix (Pagination Generic Fixture)
+## TypeScript SDK Matrix (All Fixtures)
 
-| Tool | Generator | OpenAPI Parse / Generate | Strict Typecheck | DynamicRef Fidelity | Verdict |
-|---|---|---|---|---|---|
-| Orval `v8.9.1` | TypeScript fetch | Generates all tested OAS versions | Pass | `items` remains `unknown[]` | Not supported |
-| OpenAPI Generator CLI `7.22.0` | `typescript-fetch` | Generates OAS `3.1.x`; fails `3.2.0` | Pass for generated `3.1.x` output | `items` becomes `Array<any>` | Not supported |
-| Swagger Codegen CLI v3 | `typescript-fetch` | Generates OAS `3.1.x`; fails `3.2.0` | Fails strict TSC for `3.1.x` | Wrappers degrade to `any` | Not supported |
+### Generation Results
 
-Swagger strict failure (all `3.1.x`):
+| Scenario | Orval v8.9.1 | OpenAPI Generator v7.22.0 | Swagger Codegen v3 |
+|---|---|---|---|
+| baseline / 3.1.0–3.1.2 | OK | OK | OK |
+| baseline / 3.2.0 | OK | FAIL | OK |
+| paginated-generic / 3.1.0–3.1.2 | OK | FAIL | OK |
+| paginated-generic / 3.2.0 | OK | FAIL | OK |
+| recursive-category-tree / 3.1.0–3.1.2 | OK | FAIL | OK |
+| recursive-category-tree / 3.2.0 | OK | FAIL | OK |
+| nested-workspace / 3.1.0–3.1.2 | OK | FAIL | OK |
+| nested-workspace / 3.2.0 | OK | FAIL | OK |
 
-```text
-generated/swagger-codegen/<version>/api.ts(57,15): error TS2564: Property 'configuration' has no initializer and is not definitely assigned in the constructor.
-```
+**OpenAPI Generator** fails on all dynamicRef fixtures with `Could not find /components/schemas/<SchemaName>` — its Swagger parser cannot resolve schemas that contain `$dynamicAnchor` without also having top-level `$ref` targets. This is a parser-level dynamicRef gap.
+
+### Typecheck Results
+
+| Scenario | Orval | OpenAPI Generator | Swagger Codegen |
+|---|---|---|---|
+| baseline / 3.1.0–3.1.2 | PASS | PASS | FAIL (strict) |
+| baseline / 3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
+| paginated-generic / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
+| recursive-category-tree / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
+| nested-workspace / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
+
+Swagger Codegen strict failures are from missing `@types/jest`/`@types/mocha` and uninitialized `configuration` property — pre-existing codegen quality issues, not dynamicRef-specific.
+
+### DynamicRef Type Fidelity
+
+| Scenario | Orval Output | What dynamicRef resolved to |
+|---|---|---|
+| baseline / paginated | `PaginatedTemplate { items: unknown[] }` / `type PaginatedUserResponse = PaginatedTemplate` | Fallback `not: {}` → `unknown[]`; concrete type lost |
+| recursive-category-tree | `BaseCategory { children: unknown[] }` / `type LocalizedCategory = BaseCategory & { displayName, locale }` | Recursive override lost → `unknown[]` |
+| nested-workspace | `BaseFolder { children: (Document \| unknown)[] }` / `BaseResource = Document \| unknown` | Partial: `Document` sibling resolved but dynamic slots fallback to `unknown` |
+
+Orval resolves `$dynamicRef` to the fallback `$dynamicAnchor` definition rather than the concrete override. This produces syntactically valid TypeScript but semantically wrong types.
 
 ## Recommendation
 
@@ -85,6 +110,7 @@ generated/swagger-codegen/<version>/api.ts(57,15): error TS2564: Property 'confi
 - Use validator-backed recursive and complex nested fixtures for upstream `$dynamicRef` parser/codegen work.
 - Use the pagination/generic-wrapper fixture with the documented validator caveat: Hyperjump validates it; AJV currently does not.
 - Treat OAS `3.2.0` as experimental for generator compatibility until parser support improves.
+- OpenAPI Generator has the most severe gap: it cannot parse specs containing `$dynamicAnchor` at all. Start upstream work there.
 
 ## Outreach
 

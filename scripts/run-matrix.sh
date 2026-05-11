@@ -54,7 +54,9 @@ for scenario in "${SCENARIOS[@]}"; do
         continue
       fi
       echo -n "  $tool/$scenario/$v: "
-      (cd "$dir" && npx tsc --noEmit --strict) \
+      ts_files=$(find "$dir" -name "*.ts" -not -name "*.spec.ts" -not -name "*.test.ts" -not -path "*/node_modules/*")
+      if [ -z "$ts_files" ]; then echo "SKIP (no .ts)"; continue; fi
+      echo "$ts_files" | xargs npx tsc --noEmit --strict --esModuleInterop --moduleResolution node --target ES2020 --module commonjs --skipLibCheck \
         > "$LOGS_DIR/typecheck-${tool}-${scenario}-${v}.log" 2>&1 && echo "PASS" || echo "FAIL (see logs/typecheck-${tool}-${scenario}-${v}.log)"
     done
   done

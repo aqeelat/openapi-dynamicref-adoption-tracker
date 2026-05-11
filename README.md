@@ -41,37 +41,60 @@ Legend: 🟢 pass · 🔴 fail · ⚠️ mixed validator support
 | `recursive-category-tree.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 validates dynamic recursive override | Validated dynamicRef |
 | `nested-workspace-resources.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 validates nested + multiple `$dynamicRef` anchors | Validated dynamicRef |
 
-### TypeScript SDK Matrix (Phase 1)
+### TypeScript SDK Matrix
 
-Initial SDK generation results are from the pagination/generic-wrapper fixture. A green parse/generation result does **not** mean `$dynamicRef` semantics were preserved. Re-run the matrix after fixture changes with `scripts/run-matrix.sh`.
+Initial SDK generation results across all 4 fixtures × 3 generators × 4 OAS versions. Re-run the matrix after fixture changes with `scripts/run-matrix.sh`.
 
-| Tool | Generator | OpenAPI Parse / Generate | Strict Typecheck | DynamicRef Fidelity | Verdict |
-|---|---|---|---|---|---|
-| Orval v8.9.1 | TypeScript fetch | Parses/generates tested specs | Pass | `items` remains `unknown[]` | Not supported |
-| OpenAPI Generator v7.22.0 | `typescript-fetch` | Generates OAS `3.1.x`, fails `3.2.0` | Pass for generated `3.1.x` output | `items` becomes `Array<any>` | Not supported |
-| Swagger Codegen v3 | `typescript-fetch` | Generates OAS `3.1.x`, fails `3.2.0` | Fails strict TSC | Wrappers degrade to `any` | Not supported |
+#### Generation
 
-The current matrix focuses on TypeScript because type degradation (`any`, `unknown`, missing concrete item types) is easy to inspect. The broader goal is language-agnostic SDK generator support across Java, C#, Python, Go, Rust, Kotlin, Swift, and other ecosystems.
+| Scenario | Orval v8.9.1 | OpenAPI Generator v7.22.0 | Swagger Codegen v3 |
+|---|---|---|---|
+| baseline 3.1.x | OK | OK | OK |
+| baseline 3.2.0 | OK | FAIL | OK |
+| paginated-generic 3.1.x | OK | FAIL | OK |
+| paginated-generic 3.2.0 | OK | FAIL | OK |
+| recursive-category-tree 3.1.x | OK | FAIL | OK |
+| recursive-category-tree 3.2.0 | OK | FAIL | OK |
+| nested-workspace 3.1.x | OK | FAIL | OK |
+| nested-workspace 3.2.0 | OK | FAIL | OK |
+
+OpenAPI Generator fails on all dynamicRef fixtures: `Could not find /components/schemas/<SchemaName>` — parser cannot resolve schemas containing `$dynamicAnchor`.
+
+#### Strict Typecheck
+
+| Scenario | Orval | OpenAPI Generator | Swagger Codegen |
+|---|---|---|---|
+| baseline 3.1.x | PASS | PASS | FAIL (strict) |
+| all dynamicRef 3.1.x | PASS | N/A (gen failed) | FAIL (strict) |
+
+#### DynamicRef Type Fidelity
+
+No tested tool preserves `$dynamicRef` semantics:
+
+| Tool | DynamicRef Resolution | Example Output |
+|---|---|---|
+| Orval | Resolves to fallback anchor | `items: unknown[]`, `children: unknown[]` |
+| OpenAPI Generator | Cannot parse specs with `$dynamicAnchor` | Parser error before codegen |
+| Swagger Codegen | Emits empty interfaces | `interface PaginatedUserResponse {}` |
 
 ### ⚠️ Type Quality Findings
 
-No tested tool emits robust item-typed wrappers from `$dynamicRef`:
-
 | Tool | `items` type emitted | Notes |
 |---|---|---|
-| Orval | `unknown[]` | `PaginatedTemplate.items` stays generic |
-| OpenAPI Generator | `Array<any>` | Wrapper shape flattened with item fields |
-| Swagger Codegen | `any` | Wrappers fully degraded |
+| Orval | `unknown[]` | `PaginatedTemplate.items` stays generic; concrete override lost |
+| OpenAPI Generator | N/A | Fails to parse specs containing `$dynamicAnchor` |
+| Swagger Codegen | `any` | Wrappers fully degraded; empty interfaces |
 
 ### 🔴 Notable Failures
 
-- **OpenAPI Generator + 3.2.0** — parse/validation failure, reports `openapi` as unexpected, expects Swagger 2 style attributes
+- **OpenAPI Generator + all dynamicRef fixtures** — `SpecValidationException: Could not find /components/schemas/<name>` — parser-level `$dynamicAnchor` resolution gap
+- **OpenAPI Generator + 3.2.0** — even baseline fails: `openapi` version unexpected
+- **Swagger Codegen + 3.1.x strict TSC** — `Property 'configuration' has no initializer`, missing test type defs
 - **Swagger Codegen + 3.2.0** — parser fails with `missing OpenAPI input!` after `SwaggerCompatConverter` errors
-- **Swagger Codegen + 3.1.x** — strict TSC failure: `Property 'configuration' has no initializer`
 
 ### ⚠️ Pagination Generic Caveat
 
-The pagination/generic-wrapper fixture now follows the JSON Schema generics pattern described in the OAI issue and JSON Schema article. It passes Hyperjump runtime validation, but AJV still resolves it incorrectly. Treat this as mixed validator support and include both results when discussing the fixture upstream.
+The pagination/generic-wrapper fixture follows the JSON Schema generics pattern described in the OAI issue and JSON Schema article. It passes Hyperjump runtime validation, but AJV still resolves it incorrectly. Treat this as mixed validator support and include both results when discussing the fixture upstream.
 
 ## 📁 Repository Structure
 
@@ -121,8 +144,8 @@ Versioned specs are generated from fixtures into `specs/<fixture>/oas-<version>.
 
 - [x] Add validator-backed recursive and complex nested `$dynamicRef` fixtures
 - [x] Add a pagination/generic-wrapper `$dynamicRef` fixture based on the JSON Schema generics pattern
+- [x] Run SDK generator matrix against all 4 fixtures (Orval, OpenAPI Generator, Swagger Codegen)
 - [ ] Investigate AJV's behavior on the pagination/generic-wrapper fixture
-- [ ] Re-run SDK generator matrix against the validated fixtures
 - [ ] Add more TypeScript tools (`openapi-typescript-codegen`, `oazapfts`, `@hey-api/openapi-ts`)
 - [ ] Add non-TypeScript generators (Java, C#, Python, Go, Rust, Kotlin, Swift, AutoRest, NSwag, Kiota)
 - [ ] Open focused upstream issues with validator-backed fixtures; include disagreement details for mixed-support fixtures
