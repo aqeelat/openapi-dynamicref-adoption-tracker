@@ -69,6 +69,10 @@ Per `(tool, version)` quality grade:
 - Parallel track: use this repo to file focused issues/PRs on dynamic-ref support in parsers and generators.
 - Compatibility stance: treat `3.2.0` as opt-in experimental until parser/generator support improves.
 
+## Outreach
+
+Issues and PRs opened in upstream generator repos are tracked in the [Outreach table in README.md](README.md#-outreach).
+
 ## Logs and Artifacts
 
 - Orval matrix log: `logs/orval-matrix.log`
