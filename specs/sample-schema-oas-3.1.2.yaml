@@ -1,0 +1,78 @@
+openapi: 3.1.2
+info:
+  title: DynamicRef Sample API
+  version: 0.1.0
+servers:
+  - url: https://api.example.com
+paths:
+  /assets:
+    get:
+      operationId: listAssets
+      tags: [Assets]
+      responses:
+        '200':
+          description: Asset page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAssetResponse'
+  /users:
+    get:
+      operationId: listUsers
+      tags: [Users]
+      responses:
+        '200':
+          description: User page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserResponse'
+components:
+  schemas:
+    Asset:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+
+    PaginatedTemplate:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $dynamicRef: '#itemType'
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+
+    PaginatedAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedTemplate'
+        - $dynamicAnchor: itemType
+          $ref: '#/components/schemas/Asset'
+
+    PaginatedUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedTemplate'
+        - $dynamicAnchor: itemType
+          $ref: '#/components/schemas/User'

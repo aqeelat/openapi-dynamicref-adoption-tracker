@@ -1,0 +1,4 @@
+node_modules/
+.openapi-generator/
+.swagger-codegen/
+openapitools.json
