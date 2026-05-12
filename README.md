@@ -34,21 +34,31 @@ Two pagination variants test different binding sites:
 
 ## 📊 Results
 
-### Fixture Validation Matrix
+### Ecosystem Capability Matrix
 
-Legend: 🟢 pass · 🔴 fail · ⚠️ mixed validator support
+This repo is not testing whether OpenAPI itself recognizes valid 3.1 schema objects. It uses valid OpenAPI fixtures to test whether ecosystem tools preserve `$dynamicRef` / `$dynamicAnchor` semantics when parsing and generating SDKs.
 
-| Fixture | OpenAPI Validators | Runtime Validators | Status |
-|---|---|---|---|
-| `baseline-duplicated-pagination.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 valid + invalid instances behave as expected | Control |
-| `generic-schema-binding.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 Hyperjump validates generic binding / 🔴 AJV does not | ⚠️ Mixed validator support |
-| `paginated-response.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 Hyperjump validates generic binding / 🔴 AJV does not | ⚠️ Mixed validator support |
-| `recursive-category-tree.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 validates dynamic recursive override | Validated dynamicRef |
-| `nested-workspace-resources.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 validates nested + multiple `$dynamicRef` anchors | Validated dynamicRef |
+Legend: `Pass` = works for tested fixtures · `Fail` = hard failure · `Degrades` = succeeds but loses semantics · `N/A` = not reached or not applicable
+
+| Tool | Parses OAS 3.1 DynamicRef Fixtures | Generates TypeScript SDK | Strict Typecheck | Preserves `$dynamicRef` Semantics | Failure Mode |
+|---|---|---|---|---|---|
+| Orval v8.9.1 | Pass | Pass | Pass | No | Silent degradation to `unknown[]` |
+| OpenAPI Generator v7.22.0 | Fail for named dynamic anchor schemas; pass for inline response binding | N/A or Pass depending on fixture | N/A or Pass depending on fixture | No | Hard parser failure or degraded inline output |
+| Swagger Codegen v3 | Pass for OAS 3.1.x | Pass | Fail strict | No | Empty interfaces / `any` plus strict TypeScript errors |
+
+### Fixture Quality Controls
+
+All fixtures are validated before entering the SDK matrix. OpenAPI document validation confirms they are legal OAS inputs; JSON Schema runtime validation confirms the fixtures express the intended `$dynamicRef` behavior where validators support the pattern. These are internal fixture-quality checks, not the primary ecosystem support result.
+
+OpenAPI document validators currently pass for all fixtures: Redocly, openapi-spec-validator, Spectral, and swagger-cli.
+
+AJV 2020 currently fails the generic pagination dynamic binding scenarios (`generic-schema-binding.yaml` and `paginated-response.yaml`) that Hyperjump 2020-12 validates successfully. Treat those pagination fixtures as mixed validator support and mention the disagreement in upstream reports. Recursive and nested `$dynamicRef` fixtures validate as expected with the current runtime checks.
+
+See [`fixtures/README.md`](fixtures/README.md) for fixture validation methodology and JSON Schema runtime results.
 
 ### TypeScript SDK Matrix
 
-Initial SDK generation results across all 4 fixtures × 3 generators × 4 OAS versions. Re-run the matrix after fixture changes with `scripts/run-matrix.sh`.
+Initial SDK generation results across all fixtures × 3 generators × 4 OAS versions. Re-run the matrix after fixture changes with `scripts/run-matrix.sh`.
 
 #### Generation
 
@@ -65,7 +75,7 @@ Initial SDK generation results across all 4 fixtures × 3 generators × 4 OAS ve
 | nested-workspace 3.1.x | OK | FAIL | OK |
 | nested-workspace 3.2.0 | OK | FAIL | OK |
 
-OpenAPI Generator fails on all dynamicRef fixtures: `Could not find /components/schemas/<SchemaName>` — parser cannot resolve schemas containing `$dynamicAnchor`.
+OpenAPI Generator fails on dynamicRef fixtures with named wrapper schemas: `Could not find /components/schemas/<SchemaName>`. The inline response binding fixture parses, but still does not prove semantic preservation.
 
 #### Strict Typecheck
 
@@ -102,7 +112,7 @@ No tested tool preserves `$dynamicRef` semantics:
 
 ### ⚠️ Pagination Generic Caveat
 
-The pagination/generic-wrapper fixture follows the JSON Schema generics pattern described in the OAI issue and JSON Schema article. It passes Hyperjump runtime validation, but AJV still resolves it incorrectly. Treat this as mixed validator support and include both results when discussing the fixture upstream.
+The pagination/generic-wrapper fixtures follow the JSON Schema generics pattern described in the OAI issue and JSON Schema article. Hyperjump validates them as intended, but AJV still resolves them incorrectly. Treat this as mixed validator support and include both results when discussing the fixtures upstream.
 
 ## 📁 Repository Structure
 
@@ -110,6 +120,7 @@ The pagination/generic-wrapper fixture follows the JSON Schema generics pattern 
 fixtures/                      Authored source-of-truth scenarios
   baseline-duplicated-pagination.yaml
   generic-schema-binding.yaml
+  paginated-response.yaml
   recursive-category-tree.yaml
   nested-workspace-resources.yaml
 specs/                         Generated OAS-version matrix specs
@@ -120,7 +131,6 @@ scripts/
   validate-openapi.sh          OpenAPI doc validators (Redocly, openapi-spec-validator, Spectral, swagger-cli)
   build-specs.mjs              Generates specs/ from fixtures/
   validate-jsonschema.mjs      Standalone: AJV + Hyperjump runtime validation (not in pipeline)
-validation/                    Validation notes and results
 LICENSE                        MIT
 orval.config.ts                Orval generation matrix config
 IMPLEMENTATION_GUIDE.md        Agent playbook for fixing generators
@@ -145,7 +155,7 @@ Versioned specs are generated from fixtures into `specs/<fixture>/oas-<version>.
 
 - 📜 **[Full Report](state-of-the-union.md)** — detailed findings, validation matrix, and recommendations
 - 📖 **[Runbook](RUNBOOK.md)** — exact reproduction commands and local artifact generation
-- ✅ **[Validation Results](validation/results.md)** — current OpenAPI + JSON Schema fixture validation status
+- 🧪 **[Fixtures](fixtures/README.md)** — fixture catalog, validation methodology, and JSON Schema runtime results
 - 🔧 **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** — step-by-step playbook for adding `$dynamicRef` support to any generator
 - 📚 **[SDK Generators Catalog](SDK_GENERATORS_CATALOG.md)** — 161+ generators from OpenAPI Generator + 41 from Swagger Codegen v3
 
@@ -171,7 +181,7 @@ Issues and PRs opened in upstream generator repos.
 | Orval | [orval-labs/orval](https://github.com/orval-labs/orval) | — | — | not-started | — |
 | OpenAPI Generator | [OpenAPITools/openapi-generator](https://github.com/OpenAPITools/openapi-generator) | — | — | not-started | — |
 | Swagger Codegen v3 | [swagger-api/swagger-codegen](https://github.com/swagger-api/swagger-codegen) | — | — | not-started | — |
-| AJV | [ajv-validator/ajv](https://github.com/ajv-validator/ajv) | — | — | not-started | — |
+| AJV | [ajv-validator/ajv](https://github.com/ajv-validator/ajv) | [#1573](https://github.com/ajv-validator/ajv/issues/1573), [#1745](https://github.com/ajv-validator/ajv/issues/1745) | [#2615](https://github.com/ajv-validator/ajv/pull/2615) | in-progress | 2026-05-12 |
 
 **Status values:** `not-started` · `in-progress` · `pr-open` · `pr-stale` · `merged` · `rejected` · `superseded` · `wontfix` · `resolved`
 
