@@ -77,7 +77,7 @@ npm install --no-save ajv @hyperjump/json-schema
 node scripts/validate-jsonschema.mjs
 ```
 
-This is a standalone research tool — not part of the pipeline. Results are documented in `validation/results.md`.
+This is a standalone research tool — not part of the pipeline. Results are documented in `fixtures/README.md`.
 
 ## Tool Versions
 
@@ -92,6 +92,7 @@ This is a standalone research tool — not part of the pipeline. Results are doc
 After running either stage:
 
 1. Update `README.md` results tables with new pass/fail statuses
-2. Update `state-of-the-union.md` with any new findings
-3. Update the Outreach table if issues/PRs are involved
-4. Include inline excerpts of generated types as evidence (do not commit raw logs)
+2. Update `fixtures/README.md` if fixture validation behavior changed
+3. Update `state-of-the-union.md` with any new findings
+4. Update the Outreach table if issues/PRs are involved
+5. Include inline excerpts of generated types as evidence (do not commit raw logs)

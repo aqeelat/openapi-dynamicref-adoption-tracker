@@ -22,6 +22,58 @@ node scripts/build-specs.mjs
 
 The baseline is a control. If a generator cannot produce useful types for explicit paginated wrappers, then a failure on `generic-schema-binding.yaml` is not evidence of a `$dynamicRef` bug.
 
+## Validation Methodology
+
+Fixtures are validated before they are used for SDK generator outreach. This validation is an internal quality-control step: it proves the repo is testing valid inputs with known intended semantics before evaluating whether ecosystem tools preserve those semantics.
+
+| Check | Purpose |
+|---|---|
+| OpenAPI document validation | Confirms each fixture is a structurally valid OpenAPI document before it enters the SDK matrix |
+| JSON Schema runtime validation | Confirms valid and invalid JSON instances behave as expected for the `$dynamicRef` pattern, where validator support exists |
+
+Pipeline commands:
+
+| Stage | Command | When to run |
+|---|---|---|
+| Stage 1 | `./scripts/validate-and-build.sh` | After changing fixtures |
+| Stage 2 | `./scripts/run-matrix.sh` | After changing generator versions |
+
+Standalone JSON Schema research:
+
+```bash
+node scripts/validate-jsonschema.mjs
+```
+
+Do not present one JSON Schema validator as authoritative when validators disagree. If validators disagree, include the disagreement in upstream issues and classify the fixture as mixed validator support.
+
+## OpenAPI Document Validation
+
+Run via `scripts/validate-openapi.sh` as part of the Stage 1 pipeline.
+
+| Fixture | Redocly | openapi-spec-validator | Spectral | swagger-cli |
+|---|---|---|---|---|
+| `baseline-duplicated-pagination.yaml` | Pass | Pass | Pass | Pass |
+| `generic-schema-binding.yaml` | Pass | Pass | Pass | Pass |
+| `paginated-response.yaml` | Pass | Pass | Pass | Pass |
+| `recursive-category-tree.yaml` | Pass | Pass | Pass | Pass |
+| `nested-workspace-resources.yaml` | Pass | Pass | Pass | Pass |
+
+## JSON Schema Runtime Validation
+
+Run via `node scripts/validate-jsonschema.mjs`. This is standalone fixture research, not the main SDK generator matrix.
+
+Validators: AJV 2020 and Hyperjump 2020-12.
+
+| Fixture | AJV 2020 | Hyperjump 2020-12 | Classification |
+|---|---|---|---|
+| `baseline-duplicated-pagination.yaml` | Valid user page passes; invalid user item fails | Not tested | Control passes |
+| `generic-schema-binding.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Mixed validator support |
+| `paginated-response.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Mixed validator support |
+| `recursive-category-tree.yaml` | Valid localized category tree passes; child missing localized fields fails | Not tested | Runtime check passes |
+| `nested-workspace-resources.yaml` | Valid nested workspace passes; nested folder missing permissions fails | Not tested | Runtime check passes |
+
+AJV currently fails the generic pagination dynamic binding scenarios that Hyperjump validates successfully. These fixtures still follow the JSON Schema dynamic reference/generic pattern, but upstream reports should call out the validator disagreement explicitly.
+
 ## Fixture To Spec Path
 
 ```text
