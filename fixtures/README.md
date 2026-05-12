@@ -13,14 +13,14 @@ node scripts/build-specs.mjs
 | Fixture | Purpose | What It Tests |
 |---|---|---|
 | `baseline-duplicated-pagination.yaml` | Control case with explicit `PaginatedUserResponse` and `PaginatedGroupResponse` schemas | Confirms a generator can handle ordinary duplicated wrappers before testing `$dynamicRef` |
-| `paginated-generic.yaml` | Reusable paginated wrapper with named concrete schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) | Tests JSON Schema generic-type pattern using `$dynamicRef` / `$dynamicAnchor` with named type instantiations |
-| `paginated-inline-binding.yaml` | Reusable paginated wrapper with type binding at the route response level | Tests the same generic pattern but with `$dynamicAnchor` overrides inline in the path operation response — no separate named wrapper schemas |
+| `generic-schema-binding.yaml` | Reusable paginated wrapper with named concrete schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) | Tests JSON Schema generic-type pattern using `$dynamicRef` / `$dynamicAnchor` with named type instantiations |
+| `paginated-response.yaml` | Reusable paginated wrapper with type binding at the route response level | Tests the same generic pattern but with `$dynamicAnchor` overrides inline in the path operation response — no separate named wrapper schemas |
 | `recursive-category-tree.yaml` | Canonical dynamic recursive override | Tests dynamic scope for recursive schemas (`children` should use the active category type) |
 | `nested-workspace-resources.yaml` | Multiple anchors and nested dynamic refs | Tests more than one `$dynamicAnchor` / `$dynamicRef` pair in a nested resource graph |
 
 ## Why Keep The Baseline?
 
-The baseline is a control. If a generator cannot produce useful types for explicit paginated wrappers, then a failure on `paginated-generic.yaml` is not evidence of a `$dynamicRef` bug.
+The baseline is a control. If a generator cannot produce useful types for explicit paginated wrappers, then a failure on `generic-schema-binding.yaml` is not evidence of a `$dynamicRef` bug.
 
 ## Fixture To Spec Path
 

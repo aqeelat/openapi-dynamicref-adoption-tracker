@@ -14,8 +14,8 @@
 | Fixture | Purpose | Status |
 |---|---|---|
 | `fixtures/baseline-duplicated-pagination.yaml` | Control case with explicit paginated wrappers | Validated control |
-| `fixtures/paginated-generic.yaml` | Generic pagination with named wrapper schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
-| `fixtures/paginated-inline-binding.yaml` | Generic pagination with type binding at the route response level (no named wrappers) | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
+| `fixtures/generic-schema-binding.yaml` | Generic pagination with named wrapper schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
+| `fixtures/paginated-response.yaml` | Generic pagination with type binding at the route response level (no named wrappers) | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
 | `fixtures/recursive-category-tree.yaml` | `$dynamicRef` recursive override using `$dynamicAnchor: category` | Validated dynamicRef |
 | `fixtures/nested-workspace-resources.yaml` | Nested structures with multiple dynamic refs (`folder`, `resource`) | Validated dynamicRef |
 
@@ -77,16 +77,16 @@ This means the claim that `$dynamicRef` can model generic wrappers is supported 
 |---|---|---|---|
 | baseline / 3.1.0–3.1.2 | OK | OK | OK |
 | baseline / 3.2.0 | OK | FAIL | OK |
-| paginated-generic / 3.1.0–3.1.2 | OK | FAIL | OK |
-| paginated-generic / 3.2.0 | OK | FAIL | OK |
-| paginated-inline-binding / 3.1.0–3.1.2 | OK | OK | OK |
-| paginated-inline-binding / 3.2.0 | OK | FAIL | OK |
+| generic-schema-binding / 3.1.0–3.1.2 | OK | FAIL | OK |
+| generic-schema-binding / 3.2.0 | OK | FAIL | OK |
+| paginated-response / 3.1.0–3.1.2 | OK | OK | OK |
+| paginated-response / 3.2.0 | OK | FAIL | OK |
 | recursive-category-tree / 3.1.0–3.1.2 | OK | FAIL | OK |
 | recursive-category-tree / 3.2.0 | OK | FAIL | OK |
 | nested-workspace / 3.1.0–3.1.2 | OK | FAIL | OK |
 | nested-workspace / 3.2.0 | OK | FAIL | OK |
 
-**OpenAPI Generator** fails on all fixtures with named `$dynamicAnchor` schemas (e.g., `PaginatedUserResponse` containing `$dynamicAnchor` + `$ref: PaginatedTemplate`). But it **succeeds** on the inline binding variant where the `$dynamicAnchor` override lives in the route response schema — the parser bug is triggered by schemas in `components/schemas` that contain `$dynamicAnchor` but are only reachable via `$ref` from another named schema.
+**OpenAPI Generator** fails on all fixtures with named `$dynamicAnchor` schemas (e.g., `PaginatedUserResponse` containing `$dynamicAnchor` + `$ref: PaginatedTemplate` in `generic-schema-binding`). But it **succeeds** on the `paginated-response` variant where the `$dynamicAnchor` override lives in the route response schema — the parser bug is triggered by schemas in `components/schemas` that contain `$dynamicAnchor` but are only reachable via `$ref` from another named schema.
 
 ### Typecheck Results
 
@@ -94,8 +94,8 @@ This means the claim that `$dynamicRef` can model generic wrappers is supported 
 |---|---|---|---|
 | baseline / 3.1.0–3.1.2 | PASS | PASS | FAIL (strict) |
 | baseline / 3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
-| paginated-generic / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
-| paginated-inline-binding / 3.1.0–3.1.2 | PASS | PASS | FAIL (strict) |
+| generic-schema-binding / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
+| paginated-response / 3.1.0–3.1.2 | PASS | PASS | FAIL (strict) |
 | recursive-category-tree / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
 | nested-workspace / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
 
@@ -105,8 +105,8 @@ Swagger Codegen strict failures are from missing `@types/jest`/`@types/mocha` an
 
 | Scenario | Orval Output | What dynamicRef resolved to |
 |---|---|---|
-| baseline / paginated | `PaginatedTemplate { items: unknown[] }` / `type PaginatedUserResponse = PaginatedTemplate` | Fallback `not: {}` → `unknown[]`; concrete type lost |
-| paginated-inline-binding | `PaginatedTemplate { items: unknown[] }` — API returns `PaginatedTemplate` directly | Same: fallback to `unknown[]`, no concrete override |
+| generic-schema-binding | `PaginatedTemplate { items: unknown[] }` / `type PaginatedUserResponse = PaginatedTemplate` | Fallback `not: {}` → `unknown[]`; concrete type lost |
+| paginated-response | `PaginatedTemplate { items: unknown[] }` — API returns `PaginatedTemplate` directly | Same: fallback to `unknown[]`, no concrete override |
 | recursive-category-tree | `BaseCategory { children: unknown[] }` / `type LocalizedCategory = BaseCategory & { displayName, locale }` | Recursive override lost → `unknown[]` |
 | nested-workspace | `BaseFolder { children: (Document \| unknown)[] }` / `BaseResource = Document \| unknown` | Partial: `Document` sibling resolved but dynamic slots fallback to `unknown` |
 

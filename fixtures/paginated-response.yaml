@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: DynamicRef Paginated Inline Binding API
+  title: DynamicRef Paginated Response API
   version: 0.1.0
   license:
     name: MIT

@@ -6,7 +6,7 @@ SPECS_DIR="$REPO_ROOT/specs"
 OUTPUT_DIR="$REPO_ROOT/generated"
 LOGS_DIR="$REPO_ROOT/logs"
 VERSIONS=("3.1.0" "3.1.1" "3.1.2" "3.2.0")
-SCENARIOS=("baseline-duplicated-pagination" "paginated-generic" "paginated-inline-binding" "recursive-category-tree" "nested-workspace-resources")
+SCENARIOS=("baseline-duplicated-pagination" "generic-schema-binding" "paginated-response" "recursive-category-tree" "nested-workspace-resources")
 
 mkdir -p "$OUTPUT_DIR" "$LOGS_DIR"
 

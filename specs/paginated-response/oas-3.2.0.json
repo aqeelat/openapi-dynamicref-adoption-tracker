@@ -1,7 +1,7 @@
 {
-  "openapi": "3.1.2",
+  "openapi": "3.2.0",
   "info": {
-    "title": "DynamicRef Paginated Generic API",
+    "title": "DynamicRef Paginated Response API",
     "version": "0.1.0",
     "license": {
       "name": "MIT",
@@ -28,7 +28,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaginatedUserResponse"
+                  "$defs": {
+                    "itemType": {
+                      "$dynamicAnchor": "itemType",
+                      "$ref": "#/components/schemas/User"
+                    }
+                  },
+                  "$ref": "#/components/schemas/PaginatedTemplate"
                 }
               }
             }
@@ -52,7 +58,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaginatedGroupResponse"
+                  "$defs": {
+                    "itemType": {
+                      "$dynamicAnchor": "itemType",
+                      "$ref": "#/components/schemas/Group"
+                    }
+                  },
+                  "$ref": "#/components/schemas/PaginatedTemplate"
                 }
               }
             }
@@ -132,26 +144,6 @@
             "minimum": 1
           }
         }
-      },
-      "PaginatedUserResponse": {
-        "$id": "https://example.com/schemas/PaginatedUserResponse",
-        "$defs": {
-          "itemType": {
-            "$dynamicAnchor": "itemType",
-            "$ref": "#/components/schemas/User"
-          }
-        },
-        "$ref": "#/components/schemas/PaginatedTemplate"
-      },
-      "PaginatedGroupResponse": {
-        "$id": "https://example.com/schemas/PaginatedGroupResponse",
-        "$defs": {
-          "itemType": {
-            "$dynamicAnchor": "itemType",
-            "$ref": "#/components/schemas/Group"
-          }
-        },
-        "$ref": "#/components/schemas/PaginatedTemplate"
       }
     }
   }

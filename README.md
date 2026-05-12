@@ -29,8 +29,8 @@ PaginatedTemplate.items → generic $dynamicRef: '#itemType'
 ```
 
 Two pagination variants test different binding sites:
-- `paginated-generic.yaml` — named wrapper schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) in `components/schemas`
-- `paginated-inline-binding.yaml` — type binding inline in the route response schema (no named wrappers)
+- `generic-schema-binding.yaml` — named wrapper schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) in `components/schemas`
+- `paginated-response.yaml` — type binding inline in the route response schema (no named wrappers)
 
 ## 📊 Results
 
@@ -41,8 +41,8 @@ Legend: 🟢 pass · 🔴 fail · ⚠️ mixed validator support
 | Fixture | OpenAPI Validators | Runtime Validators | Status |
 |---|---|---|---|
 | `baseline-duplicated-pagination.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 valid + invalid instances behave as expected | Control |
-| `paginated-generic.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 Hyperjump validates generic binding / 🔴 AJV does not | ⚠️ Mixed validator support |
-| `paginated-inline-binding.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 Hyperjump validates generic binding / 🔴 AJV does not | ⚠️ Mixed validator support |
+| `generic-schema-binding.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 Hyperjump validates generic binding / 🔴 AJV does not | ⚠️ Mixed validator support |
+| `paginated-response.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 Hyperjump validates generic binding / 🔴 AJV does not | ⚠️ Mixed validator support |
 | `recursive-category-tree.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 validates dynamic recursive override | Validated dynamicRef |
 | `nested-workspace-resources.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 validates nested + multiple `$dynamicRef` anchors | Validated dynamicRef |
 
@@ -56,10 +56,10 @@ Initial SDK generation results across all 4 fixtures × 3 generators × 4 OAS ve
 |---|---|---|---|
 | baseline 3.1.x | OK | OK | OK |
 | baseline 3.2.0 | OK | FAIL | OK |
-| paginated-generic 3.1.x | OK | FAIL | OK |
-| paginated-generic 3.2.0 | OK | FAIL | OK |
-| paginated-inline-binding 3.1.x | OK | OK | OK |
-| paginated-inline-binding 3.2.0 | OK | FAIL | OK |
+| generic-schema-binding 3.1.x | OK | FAIL | OK |
+| generic-schema-binding 3.2.0 | OK | FAIL | OK |
+| paginated-response 3.1.x | OK | OK | OK |
+| paginated-response 3.2.0 | OK | FAIL | OK |
 | recursive-category-tree 3.1.x | OK | FAIL | OK |
 | recursive-category-tree 3.2.0 | OK | FAIL | OK |
 | nested-workspace 3.1.x | OK | FAIL | OK |
@@ -73,7 +73,7 @@ OpenAPI Generator fails on all dynamicRef fixtures: `Could not find /components/
 |---|---|---|---|
 | baseline 3.1.x | PASS | PASS | FAIL (strict) |
 | all dynamicRef 3.1.x | PASS | N/A (gen failed) | FAIL (strict) |
-| paginated-inline-binding 3.1.x | PASS | PASS | FAIL (strict) |
+| paginated-response 3.1.x | PASS | PASS | FAIL (strict) |
 
 #### DynamicRef Type Fidelity
 
@@ -109,7 +109,7 @@ The pagination/generic-wrapper fixture follows the JSON Schema generics pattern 
 ```
 fixtures/                      Authored source-of-truth scenarios
   baseline-duplicated-pagination.yaml
-  paginated-generic.yaml
+  generic-schema-binding.yaml
   recursive-category-tree.yaml
   nested-workspace-resources.yaml
 specs/                         Generated OAS-version matrix specs
@@ -134,8 +134,8 @@ SDK_GENERATORS_CATALOG.md      Catalog of all available generators (161+ tools)
 ## 📋 Fixtures Under Test
 
 - `fixtures/baseline-duplicated-pagination.yaml`
-- `fixtures/paginated-generic.yaml`
-- `fixtures/paginated-inline-binding.yaml`
+- `fixtures/generic-schema-binding.yaml`
+- `fixtures/paginated-response.yaml`
 - `fixtures/recursive-category-tree.yaml`
 - `fixtures/nested-workspace-resources.yaml`
 

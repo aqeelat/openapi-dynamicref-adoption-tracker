@@ -1,7 +1,7 @@
 const scenarios = [
   'baseline-duplicated-pagination',
-  'paginated-generic',
-  'paginated-inline-binding',
+  'generic-schema-binding',
+  'paginated-response',
   'recursive-category-tree',
   'nested-workspace-resources',
 ];

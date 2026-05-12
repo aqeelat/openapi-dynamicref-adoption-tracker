@@ -61,7 +61,7 @@ Logs go to `logs/`, generated output to `generated/`. Both are gitignored local 
 Check whether generated models preserve concrete dynamicRef types:
 
 ```bash
-grep -n "items\|children" generated/orval/paginated-generic/3.1.2/model/paginatedTemplate.ts
+grep -n "items\|children" generated/orval/generic-schema-binding/3.1.2/model/paginatedTemplate.ts
 grep -n "items\|children" generated/orval/recursive-category-tree/3.1.2/model/baseCategory.ts
 grep -n "items\|children" generated/orval/nested-workspace-resources/3.1.2/model/baseFolder.ts
 ```

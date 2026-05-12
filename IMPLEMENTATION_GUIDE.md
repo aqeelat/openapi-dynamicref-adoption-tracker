@@ -132,7 +132,7 @@ Minimal fixtures demonstrating the issue are available at:
 
 - Recursive category tree: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/recursive-category-tree.yaml
 - Nested workspace resources: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/nested-workspace-resources.yaml
-- Pagination/generic wrapper: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/paginated-generic.yaml
+- Pagination/generic wrapper: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/generic-schema-binding.yaml
 
 These fixtures pass Redocly, openapi-spec-validator, Spectral, and swagger-cli. The recursive and nested fixtures pass AJV 2020 runtime validation. The pagination/generic fixture follows the OAI-referenced JSON Schema generics pattern and passes Hyperjump runtime validation, while AJV currently disagrees.
 
@@ -171,7 +171,7 @@ I've been investigating `$dynamicRef` compatibility across SDK generators and pu
 
 - Recursive fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/recursive-category-tree.yaml
 - Complex nested fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/nested-workspace-resources.yaml
-- Pagination/generic fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/paginated-generic.yaml
+- Pagination/generic fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/generic-schema-binding.yaml
 - Compatibility tracker: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker
 
 Happy to help with a PR if there's interest in fixing this.
@@ -231,7 +231,7 @@ Before implementing the fix, add a test that proves the bug:
 ```bash
 cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/recursive-category-tree.yaml ./test/fixtures/recursive-category-tree.yaml
 cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/nested-workspace-resources.yaml ./test/fixtures/nested-workspace-resources.yaml
-cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/paginated-generic.yaml ./test/fixtures/paginated-generic.yaml
+cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/generic-schema-binding.yaml ./test/fixtures/generic-schema-binding.yaml
 ```
 
 2. Write a test that generates code from this spec and asserts correct types:
@@ -293,13 +293,13 @@ TRACKER=~/lab/openapi-dynamicref-adoption-tracker
 # Adapt these commands to the generator's CLI
 <generator-binary> --input $TRACKER/fixtures/recursive-category-tree.yaml --output /tmp/dynamicref-test/recursive-category-tree
 <generator-binary> --input $TRACKER/fixtures/nested-workspace-resources.yaml --output /tmp/dynamicref-test/nested-workspace-resources
-<generator-binary> --input $TRACKER/fixtures/paginated-generic.yaml --output /tmp/dynamicref-test/paginated-generic
+<generator-binary> --input $TRACKER/fixtures/generic-schema-binding.yaml --output /tmp/dynamicref-test/generic-schema-binding
 ```
 
 4. **Typecheck each generated output:**
 
 ```bash
-for fixture in recursive-category-tree nested-workspace-resources paginated-generic; do
+for fixture in recursive-category-tree nested-workspace-resources generic-schema-binding; do
   echo "=== $fixture ==="
   cd /tmp/dynamicref-test/$fixture && tsc --noEmit --strict
 done
@@ -438,5 +438,5 @@ After opening an issue or PR, help it gain traction with the maintainers. Most o
 - **JSON Schema 2020-12 Core** — `$dynamicRef` / `$dynamicAnchor`: https://json-schema.org/draft/2020-12/json-schema-core#section-7.7
 - **OpenAPI 3.1.0** — uses JSON Schema 2020-12 as its schema dialect
 - **Validated fixtures in the tracker repo:** `fixtures/recursive-category-tree.yaml` and `fixtures/nested-workspace-resources.yaml`
-- **Mixed-support generic fixture:** `fixtures/paginated-generic.yaml`
+- **Mixed-support generic fixture:** `fixtures/generic-schema-binding.yaml`
 - **Compatibility results:** `state-of-the-union.md`
