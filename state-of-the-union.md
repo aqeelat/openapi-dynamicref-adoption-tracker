@@ -6,14 +6,16 @@
 - We split the work into two stages: fixture validation first, SDK generator type fidelity second.
 - Two dynamicRef fixtures are currently validator-backed: recursive tree extension and complex nested resource graphs with multiple dynamic anchors.
 - The pagination/generic-wrapper fixture follows the JSON Schema generics pattern referenced from OAI #3601. It passes Hyperjump runtime validation, but AJV 2020 still resolves it incorrectly.
-- TypeScript SDK results across all 4 fixtures confirm: no tested tool preserves `$dynamicRef` type fidelity. Generators either fail to parse specs containing `$dynamicAnchor`, or emit `unknown[]`/`any` for dynamic ref slots.
+- TypeScript SDK results across all 5 fixtures confirm: no tested tool preserves `$dynamicRef` type fidelity. Generators either fail to parse specs containing `$dynamicAnchor`, or emit `unknown[]`/`any` for dynamic ref slots.
+- New finding: OpenAPI Generator fails on named wrapper schemas (`PaginatedUserResponse` → `$ref: PaginatedTemplate`) but **succeeds** on inline binding (response-level `$defs` + `$ref: PaginatedTemplate`). This suggests the parser bug is triggered by schemas that contain `$dynamicAnchor` but are only reachable via `$ref` from another named schema.
 
 ## Fixtures
 
 | Fixture | Purpose | Status |
 |---|---|---|
 | `fixtures/baseline-duplicated-pagination.yaml` | Control case with explicit paginated wrappers | Validated control |
-| `fixtures/paginated-generic.yaml` | Generic pagination wrapper using `$dynamicRef: '#itemType'` | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
+| `fixtures/paginated-generic.yaml` | Generic pagination with named wrapper schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
+| `fixtures/paginated-inline-binding.yaml` | Generic pagination with type binding at the route response level (no named wrappers) | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
 | `fixtures/recursive-category-tree.yaml` | `$dynamicRef` recursive override using `$dynamicAnchor: category` | Validated dynamicRef |
 | `fixtures/nested-workspace-resources.yaml` | Nested structures with multiple dynamic refs (`folder`, `resource`) | Validated dynamicRef |
 
@@ -25,6 +27,7 @@ OpenAPI document validation:
 |---|---|---|---|---|
 | Baseline duplicated pagination | Pass | Pass | Pass | Pass |
 | Paginated generic | Pass | Pass | Pass | Pass |
+| Paginated inline binding | Pass | Pass | Pass | Pass |
 | Recursive category tree | Pass | Pass | Pass | Pass |
 | Nested workspace resources | Pass | Pass | Pass | Pass |
 
@@ -34,6 +37,7 @@ JSON Schema runtime validation:
 |---|---|---|---|
 | Baseline duplicated pagination | Pass | Not tested | Pass |
 | Paginated generic | Fails valid user/group pages | Passes valid/invalid user and group pages | Mixed validator support |
+| Paginated inline binding | Fails valid user/group pages | Passes valid/invalid user and group pages | Mixed validator support |
 | Recursive category tree | Pass | Not tested | Pass |
 | Nested workspace resources | Pass | Not tested | Pass |
 
@@ -75,12 +79,14 @@ This means the claim that `$dynamicRef` can model generic wrappers is supported 
 | baseline / 3.2.0 | OK | FAIL | OK |
 | paginated-generic / 3.1.0–3.1.2 | OK | FAIL | OK |
 | paginated-generic / 3.2.0 | OK | FAIL | OK |
+| paginated-inline-binding / 3.1.0–3.1.2 | OK | OK | OK |
+| paginated-inline-binding / 3.2.0 | OK | FAIL | OK |
 | recursive-category-tree / 3.1.0–3.1.2 | OK | FAIL | OK |
 | recursive-category-tree / 3.2.0 | OK | FAIL | OK |
 | nested-workspace / 3.1.0–3.1.2 | OK | FAIL | OK |
 | nested-workspace / 3.2.0 | OK | FAIL | OK |
 
-**OpenAPI Generator** fails on all dynamicRef fixtures with `Could not find /components/schemas/<SchemaName>` — its Swagger parser cannot resolve schemas that contain `$dynamicAnchor` without also having top-level `$ref` targets. This is a parser-level dynamicRef gap.
+**OpenAPI Generator** fails on all fixtures with named `$dynamicAnchor` schemas (e.g., `PaginatedUserResponse` containing `$dynamicAnchor` + `$ref: PaginatedTemplate`). But it **succeeds** on the inline binding variant where the `$dynamicAnchor` override lives in the route response schema — the parser bug is triggered by schemas in `components/schemas` that contain `$dynamicAnchor` but are only reachable via `$ref` from another named schema.
 
 ### Typecheck Results
 
@@ -89,6 +95,7 @@ This means the claim that `$dynamicRef` can model generic wrappers is supported 
 | baseline / 3.1.0–3.1.2 | PASS | PASS | FAIL (strict) |
 | baseline / 3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
 | paginated-generic / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
+| paginated-inline-binding / 3.1.0–3.1.2 | PASS | PASS | FAIL (strict) |
 | recursive-category-tree / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
 | nested-workspace / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
 
@@ -99,6 +106,7 @@ Swagger Codegen strict failures are from missing `@types/jest`/`@types/mocha` an
 | Scenario | Orval Output | What dynamicRef resolved to |
 |---|---|---|
 | baseline / paginated | `PaginatedTemplate { items: unknown[] }` / `type PaginatedUserResponse = PaginatedTemplate` | Fallback `not: {}` → `unknown[]`; concrete type lost |
+| paginated-inline-binding | `PaginatedTemplate { items: unknown[] }` — API returns `PaginatedTemplate` directly | Same: fallback to `unknown[]`, no concrete override |
 | recursive-category-tree | `BaseCategory { children: unknown[] }` / `type LocalizedCategory = BaseCategory & { displayName, locale }` | Recursive override lost → `unknown[]` |
 | nested-workspace | `BaseFolder { children: (Document \| unknown)[] }` / `BaseResource = Document \| unknown` | Partial: `Document` sibling resolved but dynamic slots fallback to `unknown` |
 

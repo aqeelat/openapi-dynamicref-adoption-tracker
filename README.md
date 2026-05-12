@@ -28,6 +28,10 @@ BaseFolder.shortcuts    → second $dynamicRef: '#resource'
 PaginatedTemplate.items → generic $dynamicRef: '#itemType'
 ```
 
+Two pagination variants test different binding sites:
+- `paginated-generic.yaml` — named wrapper schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) in `components/schemas`
+- `paginated-inline-binding.yaml` — type binding inline in the route response schema (no named wrappers)
+
 ## 📊 Results
 
 ### Fixture Validation Matrix
@@ -38,6 +42,7 @@ Legend: 🟢 pass · 🔴 fail · ⚠️ mixed validator support
 |---|---|---|---|
 | `baseline-duplicated-pagination.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 valid + invalid instances behave as expected | Control |
 | `paginated-generic.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 Hyperjump validates generic binding / 🔴 AJV does not | ⚠️ Mixed validator support |
+| `paginated-inline-binding.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 Hyperjump validates generic binding / 🔴 AJV does not | ⚠️ Mixed validator support |
 | `recursive-category-tree.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 validates dynamic recursive override | Validated dynamicRef |
 | `nested-workspace-resources.yaml` | 🟢 Redocly / openapi-spec-validator / Spectral / swagger-cli | 🟢 validates nested + multiple `$dynamicRef` anchors | Validated dynamicRef |
 
@@ -53,6 +58,8 @@ Initial SDK generation results across all 4 fixtures × 3 generators × 4 OAS ve
 | baseline 3.2.0 | OK | FAIL | OK |
 | paginated-generic 3.1.x | OK | FAIL | OK |
 | paginated-generic 3.2.0 | OK | FAIL | OK |
+| paginated-inline-binding 3.1.x | OK | OK | OK |
+| paginated-inline-binding 3.2.0 | OK | FAIL | OK |
 | recursive-category-tree 3.1.x | OK | FAIL | OK |
 | recursive-category-tree 3.2.0 | OK | FAIL | OK |
 | nested-workspace 3.1.x | OK | FAIL | OK |
@@ -66,6 +73,7 @@ OpenAPI Generator fails on all dynamicRef fixtures: `Could not find /components/
 |---|---|---|---|
 | baseline 3.1.x | PASS | PASS | FAIL (strict) |
 | all dynamicRef 3.1.x | PASS | N/A (gen failed) | FAIL (strict) |
+| paginated-inline-binding 3.1.x | PASS | PASS | FAIL (strict) |
 
 #### DynamicRef Type Fidelity
 
@@ -87,7 +95,7 @@ No tested tool preserves `$dynamicRef` semantics:
 
 ### 🔴 Notable Failures
 
-- **OpenAPI Generator + all dynamicRef fixtures** — `SpecValidationException: Could not find /components/schemas/<name>` — parser-level `$dynamicAnchor` resolution gap
+- **OpenAPI Generator + all dynamicRef fixtures with named wrappers** — `SpecValidationException: Could not find /components/schemas/<name>` — parser-level `$dynamicAnchor` resolution gap. **Notably, the inline-binding variant succeeds** — the bug is specific to named schemas in `components/schemas` that contain `$dynamicAnchor`.
 - **OpenAPI Generator + 3.2.0** — even baseline fails: `openapi` version unexpected
 - **Swagger Codegen + 3.1.x strict TSC** — `Property 'configuration' has no initializer`, missing test type defs
 - **Swagger Codegen + 3.2.0** — parser fails with `missing OpenAPI input!` after `SwaggerCompatConverter` errors
@@ -127,6 +135,7 @@ SDK_GENERATORS_CATALOG.md      Catalog of all available generators (161+ tools)
 
 - `fixtures/baseline-duplicated-pagination.yaml`
 - `fixtures/paginated-generic.yaml`
+- `fixtures/paginated-inline-binding.yaml`
 - `fixtures/recursive-category-tree.yaml`
 - `fixtures/nested-workspace-resources.yaml`
 
@@ -144,7 +153,8 @@ Versioned specs are generated from fixtures into `specs/<fixture>/oas-<version>.
 
 - [x] Add validator-backed recursive and complex nested `$dynamicRef` fixtures
 - [x] Add a pagination/generic-wrapper `$dynamicRef` fixture based on the JSON Schema generics pattern
-- [x] Run SDK generator matrix against all 4 fixtures (Orval, OpenAPI Generator, Swagger Codegen)
+- [x] Add inline-binding pagination variant (type binding at route response level)
+- [x] Run SDK generator matrix against all fixtures (Orval, OpenAPI Generator, Swagger Codegen)
 - [ ] Investigate AJV's behavior on the pagination/generic-wrapper fixture
 - [ ] Add more TypeScript tools (`openapi-typescript-codegen`, `oazapfts`, `@hey-api/openapi-ts`)
 - [ ] Add non-TypeScript generators (Java, C#, Python, Go, Rust, Kotlin, Swift, AutoRest, NSwag, Kiota)

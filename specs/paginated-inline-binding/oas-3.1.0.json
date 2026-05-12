@@ -1,0 +1,150 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DynamicRef Paginated Inline Binding API",
+    "version": "0.1.0",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.dynamicref.test"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/users": {
+      "get": {
+        "summary": "List users",
+        "operationId": "listUsers",
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "User page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "itemType": {
+                      "$dynamicAnchor": "itemType",
+                      "$ref": "#/components/schemas/User"
+                    }
+                  },
+                  "$ref": "#/components/schemas/PaginatedTemplate"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error response"
+          }
+        }
+      }
+    },
+    "/groups": {
+      "get": {
+        "summary": "List groups",
+        "operationId": "listGroups",
+        "tags": [
+          "Groups"
+        ],
+        "responses": {
+          "200": {
+            "description": "Group page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$defs": {
+                    "itemType": {
+                      "$dynamicAnchor": "itemType",
+                      "$ref": "#/components/schemas/Group"
+                    }
+                  },
+                  "$ref": "#/components/schemas/PaginatedTemplate"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error response"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "email"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "Group": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PaginatedTemplate": {
+        "$id": "https://example.com/schemas/PaginatedTemplate",
+        "$defs": {
+          "itemType": {
+            "$dynamicAnchor": "itemType",
+            "not": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$dynamicRef": "#itemType"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}

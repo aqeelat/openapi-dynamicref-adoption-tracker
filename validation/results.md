@@ -10,6 +10,7 @@ Run via `scripts/validate-openapi.sh` (part of Stage 1 pipeline).
 |---|---|---|---|---|
 | `baseline-duplicated-pagination.yaml` | Pass | Pass | Pass | Pass |
 | `paginated-generic.yaml` | Pass | Pass | Pass | Pass |
+| `paginated-inline-binding.yaml` | Pass | Pass | Pass | Pass |
 | `recursive-category-tree.yaml` | Pass | Pass | Pass | Pass |
 | `nested-workspace-resources.yaml` | Pass | Pass | Pass | Pass |
 
@@ -23,5 +24,6 @@ Validators: AJV 2020 and Hyperjump 2020-12
 |---|---|---|
 | `baseline-duplicated-pagination.yaml` | Valid user page passes; invalid user item fails | Not tested |
 | `paginated-generic.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail |
+| `paginated-inline-binding.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail |
 | `recursive-category-tree.yaml` | Valid localized category tree passes; child missing localized fields fails | Not tested |
 | `nested-workspace-resources.yaml` | Valid nested workspace passes; nested folder missing permissions fails | Not tested |

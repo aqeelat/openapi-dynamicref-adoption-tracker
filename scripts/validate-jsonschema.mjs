@@ -47,6 +47,26 @@ function compileSchema(fixtureName, schemaName) {
   return ajv.compile({ $ref: `${schemaDocument.$id}#/$defs/${schemaName}` });
 }
 
+function compileInlineResponseSchema(fixtureName, operationPath, responseCode) {
+  const fixture = loadFixture(fixtureName);
+  const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
+  const documentId = `https://example.com/${fixtureName}`;
+  const schemaDocument = {
+    $id: documentId,
+    $defs: rewriteOpenApiRefs(fixture.components.schemas, documentId),
+  };
+
+  ajv.addSchema(schemaDocument);
+
+  const responseSchema = fixture.paths[operationPath].get.responses[responseCode].content['application/json'].schema;
+  const rewrittenResponse = rewriteOpenApiRefs(responseSchema, documentId);
+
+  return ajv.compile({
+    $id: `${documentId}/paths/${operationPath}/${responseCode}`,
+    ...rewrittenResponse,
+  });
+}
+
 const hyperjumpFixtures = new Set();
 
 async function validateWithHyperjump(fixtureName, schemaName, data) {
@@ -63,6 +83,33 @@ async function validateWithHyperjump(fixtureName, schemaName, data) {
   }
 
   const output = await validateHyperjumpSchema(`${documentId}#/$defs/${schemaName}`, data, 'BASIC');
+  return output.valid;
+}
+
+async function validateInlineWithHyperjump(fixtureName, operationPath, responseCode, data) {
+  const fixture = loadFixture(fixtureName);
+  const documentId = `https://example.com/hyperjump/${fixtureName}`;
+
+  if (!hyperjumpFixtures.has(fixtureName)) {
+    await addHyperjumpSchema({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: documentId,
+      $defs: rewriteOpenApiRefs(fixture.components.schemas, documentId),
+    });
+    hyperjumpFixtures.add(fixtureName);
+  }
+
+  const responseSchema = fixture.paths[operationPath].get.responses[responseCode].content['application/json'].schema;
+  const rewrittenResponse = rewriteOpenApiRefs(responseSchema, documentId);
+
+  const inlineSchemaId = `${documentId}/inline/${operationPath}/${responseCode}`;
+  await addHyperjumpSchema({
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    $id: inlineSchemaId,
+    ...rewrittenResponse,
+  });
+
+  const output = await validateHyperjumpSchema(inlineSchemaId, data, 'BASIC');
   return output.valid;
 }
 
@@ -164,6 +211,43 @@ const cases = [
   },
 ];
 
+const inlineCases = [
+  {
+    name: 'paginated inline binding: valid user page (AJV currently fails this pattern)',
+    fixture: 'paginated-inline-binding.yaml',
+    operationPath: '/users',
+    responseCode: '200',
+    data: { items: [{ id: 'u1', email: 'user@example.com' }], total: 1, page: 1, pageSize: 10 },
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'paginated inline binding: invalid user item',
+    fixture: 'paginated-inline-binding.yaml',
+    operationPath: '/users',
+    responseCode: '200',
+    data: { items: [{ id: 'u1', name: 'Not a user' }], total: 1, page: 1, pageSize: 10 },
+    expected: false,
+  },
+  {
+    name: 'paginated inline binding: valid group page (AJV currently fails this pattern)',
+    fixture: 'paginated-inline-binding.yaml',
+    operationPath: '/groups',
+    responseCode: '200',
+    data: { items: [{ id: 'g1', name: 'Admins' }], total: 1, page: 1, pageSize: 10 },
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'paginated inline binding: invalid group item',
+    fixture: 'paginated-inline-binding.yaml',
+    operationPath: '/groups',
+    responseCode: '200',
+    data: { items: [{ id: 'g1' }], total: 1, page: 1, pageSize: 10 },
+    expected: false,
+  },
+];
+
 const hyperjumpCases = [
   {
     name: 'hyperjump paginated generic: valid group page',
@@ -195,6 +279,41 @@ const hyperjumpCases = [
   },
 ];
 
+const hyperjumpInlineCases = [
+  {
+    name: 'hyperjump paginated inline: valid user page',
+    fixture: 'paginated-inline-binding.yaml',
+    operationPath: '/users',
+    responseCode: '200',
+    data: { items: [{ id: 'u1', email: 'user@example.com' }], total: 1, page: 1, pageSize: 10 },
+    expected: true,
+  },
+  {
+    name: 'hyperjump paginated inline: invalid user item',
+    fixture: 'paginated-inline-binding.yaml',
+    operationPath: '/users',
+    responseCode: '200',
+    data: { items: [{ id: 'u1', name: 'Not a user' }], total: 1, page: 1, pageSize: 10 },
+    expected: false,
+  },
+  {
+    name: 'hyperjump paginated inline: valid group page',
+    fixture: 'paginated-inline-binding.yaml',
+    operationPath: '/groups',
+    responseCode: '200',
+    data: { items: [{ id: 'g1', name: 'Admins' }], total: 1, page: 1, pageSize: 10 },
+    expected: true,
+  },
+  {
+    name: 'hyperjump paginated inline: invalid group item',
+    fixture: 'paginated-inline-binding.yaml',
+    operationPath: '/groups',
+    responseCode: '200',
+    data: { items: [{ id: 'g1' }], total: 1, page: 1, pageSize: 10 },
+    expected: false,
+  },
+];
+
 let failed = false;
 
 console.log('=== AJV 2020 ===');
@@ -213,9 +332,36 @@ for (const testCase of cases) {
   }
 }
 
+for (const testCase of inlineCases) {
+  const validate = compileInlineResponseSchema(testCase.fixture, testCase.operationPath, testCase.responseCode);
+  const actual = validate(testCase.data);
+  const pass = actual === testCase.expected;
+
+  const label = pass && testCase.knownGap ? 'KNOWN-GAP' : pass ? 'PASS' : 'FAIL';
+  console.log(`${label} ${testCase.name}`);
+  console.log(`  expected=${testCase.expected} actual=${actual}`);
+
+  if (!pass) {
+    failed = true;
+    console.log(`  errors=${JSON.stringify(validate.errors, null, 2)}`);
+  }
+}
+
 console.log('\n=== Hyperjump 2020-12 ===');
 for (const testCase of hyperjumpCases) {
   const actual = await validateWithHyperjump(testCase.fixture, testCase.schema, testCase.data);
+  const pass = actual === testCase.expected;
+
+  console.log(`${pass ? 'PASS' : 'FAIL'} ${testCase.name}`);
+  console.log(`  expected=${testCase.expected} actual=${actual}`);
+
+  if (!pass) {
+    failed = true;
+  }
+}
+
+for (const testCase of hyperjumpInlineCases) {
+  const actual = await validateInlineWithHyperjump(testCase.fixture, testCase.operationPath, testCase.responseCode, testCase.data);
   const pass = actual === testCase.expected;
 
   console.log(`${pass ? 'PASS' : 'FAIL'} ${testCase.name}`);
