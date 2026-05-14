@@ -1,9 +1,9 @@
-# Runbook: Two-Stage Validation and SDK Generation Pipeline
+# Runbook: SDK Generator Matrix Pipeline
 
 ## Prerequisites
 
 - Node.js (v18+)
-- Docker (for Swagger Codegen v3)
+- Docker (for Swagger Codegen v3; optional for other tools)
 - `uv` for `openapi-spec-validator` (`brew install uv` or see https://docs.astral.sh/uv/)
 
 Install local dependencies:
@@ -12,53 +12,95 @@ Install local dependencies:
 npm install --no-save js-yaml
 ```
 
-## Pipeline Overview
+Optional tools (installed on-demand, skipped if unavailable):
 
-The repo has two independent stages:
+- **Kiota**: `dotnet tool install -g Microsoft.OpenApi.Kiota` or `curl -L https://aka.ms/kiota/install | bash`
+- **NSwag**: `dotnet tool install -g NSwag.GlobalTool`
+
+## Pipeline Overview
 
 | Stage | When to run | Entry point | What it does |
 |---|---|---|---|
-| **Stage 1: Validate & Build** | After changing any fixture in `fixtures/` | `scripts/validate-and-build.sh` | Validates fixtures with OpenAPI doc validators, then regenerates `specs/` |
-| **Stage 2: SDK Matrix** | After changing generator versions, or after Stage 1 | `scripts/run-matrix.sh` | Generates SDKs from specs and runs strict typecheck |
+| **Stage 1: Validate & Build** | After changing any fixture in `fixtures/` | `scripts/validate-and-build.sh` | Validates fixtures, regenerates `specs/` |
+| **Stage 2: SDK Matrix** | After changing generator versions, or after Stage 1 | `scripts/run-matrix.sh` | Generates SDKs, typechecks, analyzes type quality |
 
 ## Stage 1: Validate & Build
-
-Run after changing any file in `fixtures/`:
 
 ```bash
 ./scripts/validate-and-build.sh
 ```
 
-This runs:
-
-1. **OpenAPI document validation** (`scripts/validate-openapi.sh`) — Redocly, openapi-spec-validator, Spectral, swagger-cli
-2. **Spec generation** (`scripts/build-specs.mjs`) — regenerates `specs/<fixture>/oas-<version>.json` from all fixtures
-
-Specs are always rebuilt, even if validation fails. The exit code reflects validation status (non-zero if any validator failed).
-
-Expected result: all fixtures pass all four OpenAPI document validators.
+1. **OpenAPI document validation** — Redocly, openapi-spec-validator, Spectral, swagger-cli
+2. **Spec generation** — regenerates `specs/<fixture>/oas-<version>.json`
 
 ## Stage 2: Run the SDK Generation Matrix
-
-Run after Stage 1, or when testing against new generator versions:
 
 ```bash
 ./scripts/run-matrix.sh
 ```
 
-This generates SDKs from `specs/<fixture>/oas-<version>.json` using:
+Runs all 9 generators × 5 scenarios × 4 OAS versions in parallel (default: 8 workers). Generators that aren't installed are skipped with a clear message.
 
-- Orval v8.9.1 (TypeScript fetch)
-- OpenAPI Generator v7.22.0 (`typescript-fetch`)
-- Swagger Codegen v3 (Docker, `typescript-fetch`)
+### Generators in the Matrix
 
-Then runs strict TypeScript typecheck on all generated output.
+| Tool | Runtime | Notes |
+|---|---|---|
+| Orval | npx | Uses `orval.config.ts` with `--project` |
+| OpenAPI Generator | npx | `typescript-fetch` generator |
+| Swagger Codegen v3 | Docker | `typescript-fetch` generator |
+| openapi-typescript | npx | Generates `.d.ts` only (no client) |
+| @hey-api/openapi-ts | npx | Modern TS SDK + types |
+| openapi-typescript-codegen | npx | Full TS client SDK |
+| oazapfts | npx | Single-file TS client |
+| Kiota (Microsoft) | binary | Requires install (see Prerequisites) |
+| NSwag | binary | Requires install (see Prerequisites) |
 
-Logs go to `logs/`, generated output to `generated/`. Both are gitignored local artifacts.
+### CLI Options
+
+```bash
+# Run full matrix
+./scripts/run-matrix.sh
+
+# Run specific tools/scenarios/versions
+node scripts/matrix-runner.mjs --tools=orval,openapi-typescript --scenarios=generic-schema-binding
+
+# Adjust parallelism
+MATRIX_CONCURRENCY=4 ./scripts/run-matrix.sh
+node scripts/matrix-runner.mjs --concurrency=2
+
+# Skip phases
+node scripts/matrix-runner.mjs --no-typecheck --no-analysis
+
+# Dry run (show jobs without executing)
+node scripts/matrix-runner.mjs --dry-run
+```
+
+### Output
+
+- `generated/<tool>/<scenario>/<version>/` — Generated SDK output
+- `logs/<tool>-<scenario>-<version>.log` — Generation logs
+- `logs/typecheck-<tool>-<scenario>-<version>.log` — Typecheck logs
+- `logs/matrix-results.json` — Structured results (all cells)
+
+### Results Tables
+
+The runner prints four tables:
+
+1. **Generation Results** — OK/FAIL/SKIP per cell
+2. **Typecheck Results** — PASS/FAIL per cell
+3. **Type Quality** — PRESERVED/PARTIAL/DEGRADED/LOST/EMPTY per cell
+4. **Summary** — Counts and skipped tool info
+
+## CI: GitHub Actions Matrix
+
+Push to `main` or open a PR to trigger `.github/workflows/matrix.yml`, which runs each (tool, scenario, version) cell as a separate parallel GitHub Actions job. This gives:
+
+- Full parallelism across GitHub runners
+- Visual pass/fail matrix in the Actions UI
+- Generated output as downloadable artifacts
+- Summary posted to the workflow run page
 
 ## Inspect Generated Types
-
-Check whether generated models preserve concrete dynamicRef types:
 
 ```bash
 grep -n "items\|children" generated/orval/generic-schema-binding/3.1.2/model/paginatedTemplate.ts
@@ -70,22 +112,12 @@ For dynamicRef fixtures, the desired result is concrete types (e.g., `items: Use
 
 ## Optional: JSON Schema Runtime Validation
 
-For investigating `$dynamicRef` runtime resolution behavior (AJV, Hyperjump):
-
 ```bash
 npm install --no-save ajv @hyperjump/json-schema
 node scripts/validate-jsonschema.mjs
 ```
 
-This is a standalone research tool — not part of the pipeline. Results are documented in `fixtures/README.md`.
-
-## Tool Versions
-
-| Tool | Version | Generator |
-|---|---|---|
-| Orval | v8.9.1 | fetch |
-| OpenAPI Generator CLI | 7.22.0 | typescript-fetch |
-| Swagger Codegen CLI v3 | Docker image `swaggerapi/swagger-codegen-cli-v3` | typescript-fetch |
+Standalone research tool — not part of the pipeline.
 
 ## Updating Results
 

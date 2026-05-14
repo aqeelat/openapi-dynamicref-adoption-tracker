@@ -1,0 +1,218 @@
+name: SDK Generator Matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tools:
+        description: 'Comma-separated tool IDs (empty = all)'
+        required: false
+        default: ''
+      scenarios:
+        description: 'Comma-separated scenarios (empty = all)'
+        required: false
+        default: ''
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  build-specs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install --no-save js-yaml
+      - run: node scripts/build-specs.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: specs
+          path: specs/
+          retention-days: 1
+
+  generate:
+    needs: build-specs
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tool:
+          - orval
+          - openapi-generator
+          - swagger-codegen
+          - openapi-typescript
+          - hey-api
+          - openapi-typescript-codegen
+          - oazapfts
+          - kiota
+          - nswag
+        scenario:
+          - baseline-duplicated-pagination
+          - generic-schema-binding
+          - paginated-response
+          - recursive-category-tree
+          - nested-workspace-resources
+        version:
+          - '3.1.0'
+          - '3.1.1'
+          - '3.1.2'
+          - '3.2.0'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check manual dispatch filter
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          tools="${{ github.event.inputs.tools }}"
+          scenarios="${{ github.event.inputs.scenarios }}"
+          if [ -n "$tools" ]; then
+            echo "$tools" | tr ',' '\n' | grep -qx "${{ matrix.tool }}" || exit 0
+          fi
+          if [ -n "$scenarios" ]; then
+            echo "$scenarios" | tr ',' '\n' | grep -qx "${{ matrix.scenario }}" || exit 0
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: specs
+          path: specs/
+
+      - name: Install .NET tools
+        if: matrix.tool == 'kiota' || matrix.tool == 'nswag'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Kiota
+        if: matrix.tool == 'kiota'
+        run: dotnet tool install --global Microsoft.OpenApi.Kiota
+
+      - name: Install NSwag
+        if: matrix.tool == 'nswag'
+        run: dotnet tool install --global NSwag.GlobalTool
+
+      - name: Install npm dependencies
+        run: npm install --no-save js-yaml typescript
+
+      - name: Generate SDK
+        id: generate
+        run: node scripts/matrix-runner.mjs --tools=${{ matrix.tool }} --scenarios=${{ matrix.scenario }} --versions=${{ matrix.version }} --no-typecheck --no-analysis
+        continue-on-error: true
+
+      - name: Typecheck
+        if: steps.generate.outcome == 'success'
+        id: typecheck
+        run: |
+          output_dir="generated/${{ matrix.tool }}/${{ matrix.scenario }}/${{ matrix.version }}"
+          if [ ! -d "$output_dir" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ts_files=$(find "$output_dir" -name "*.ts" -not -name "*.spec.ts" -not -name "*.test.ts" -not -path "*/node_modules/*" 2>/dev/null || true)
+          if [ -z "$ts_files" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$ts_files" | xargs npx tsc --noEmit --strict --esModuleInterop --moduleResolution node --target ES2020 --module commonjs --skipLibCheck 2>&1 | tee logs/typecheck-${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.log
+          exit ${PIPESTATUS[0]}
+        continue-on-error: true
+
+      - name: Analyze quality
+        if: steps.generate.outcome == 'success'
+        run: node scripts/matrix-runner.mjs --tools=${{ matrix.tool }} --scenarios=${{ matrix.scenario }} --versions=${{ matrix.version }} --no-generate --no-typecheck
+
+      - name: Write cell result
+        if: always()
+        run: |
+          mkdir -p cell-results
+          gen_outcome="${{ steps.generate.outcome }}"
+          tc_outcome="${{ steps.typecheck.outcome }}"
+          tc_skip="${{ steps.typecheck.outputs.skip }}"
+          echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.generate=${gen_outcome:-skipped}" >> cell-results/results.env
+          if [ "$tc_skip" = "true" ]; then
+            echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.typecheck=skip" >> cell-results/results.env
+          else
+            echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.typecheck=${tc_outcome:-skipped}" >> cell-results/results.env
+          fi
+
+      - name: Upload generated output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}
+          path: |
+            generated/${{ matrix.tool }}/${{ matrix.scenario }}/${{ matrix.version }}/
+            logs/${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.log
+            logs/typecheck-${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.log
+            logs/matrix-results.json
+            cell-results/results.env
+          retention-days: 7
+          if-no-files-found: ignore
+
+  summary:
+    needs: generate
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: generated-*
+          path: all-results/
+          merge-multiple: true
+
+      - name: Build summary
+        run: |
+          echo "## SDK Generator Matrix Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tool | Scenario | Version | Generate | Typecheck |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|----------|---------|----------|-----------|" >> "$GITHUB_STEP_SUMMARY"
+
+          for envf in all-results/cell-results/results.env; do
+            [ -f "$envf" ] || continue
+            while IFS='=' read -r key value; do
+              IFS='.' read -r tool scenario version field <<< "$key"
+              [ "$field" = "generate" ] || continue
+              tc_key="${tool}.${scenario}.${version}.typecheck"
+              tc_value=$(grep "^${tc_key}=" all-results/cell-results/results.env 2>/dev/null | cut -d= -f2)
+              gen_label="${value}"
+              tc_label="${tc_value:-N/A}"
+              echo "| ${tool} | ${scenario} | ${version} | ${gen_label} | ${tc_label} |" >> "$GITHUB_STEP_SUMMARY"
+            done < "$envf"
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Artifacts" >> "$GITHUB_STEP_SUMMARY"
+          echo "Generated output and logs are available as workflow artifacts." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Load quality results
+        run: |
+          echo "### Type Quality" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f all-results/logs/matrix-results.json ]; then
+            node -e "
+              const data = JSON.parse(require('fs').readFileSync('all-results/logs/matrix-results.json', 'utf8'));
+              console.log('| Tool | Scenario | Version | Fidelity | unknown | any |');
+              console.log('|------|----------|---------|----------|---------|-----|');
+              for (const r of (data.results || [])) {
+                if (r.quality) {
+                  console.log('| ' + [r.tool, r.scenario, r.version, r.quality.fidelity, r.quality.unknownCount, r.quality.anyCount].join(' | ') + ' |');
+                }
+              }
+            " >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Quality data not available" >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -127,10 +127,13 @@ specs/                         Generated OAS-version matrix specs
   <fixture>/oas-<version>.json
 scripts/
   validate-and-build.sh        Stage 1: validate fixtures + rebuild specs (run when fixtures change)
-  run-matrix.sh                Stage 2: SDK generation + typecheck (run when generator versions change)
+  run-matrix.sh                Stage 2: SDK generation + typecheck (parallel, all tools)
+  matrix-runner.mjs            Matrix engine: parallel generation, typecheck, quality analysis
   validate-openapi.sh          OpenAPI doc validators (Redocly, openapi-spec-validator, Spectral, swagger-cli)
   build-specs.mjs              Generates specs/ from fixtures/
   validate-jsonschema.mjs      Standalone: AJV + Hyperjump runtime validation (not in pipeline)
+.github/workflows/
+  matrix.yml                   CI matrix: each (tool, scenario, version) as a parallel job
 LICENSE                        MIT
 orval.config.ts                Orval generation matrix config
 IMPLEMENTATION_GUIDE.md        Agent playbook for fixing generators
@@ -166,24 +169,35 @@ Versioned specs are generated from fixtures into `specs/<fixture>/oas-<version>.
 - [x] Add inline-binding pagination variant (type binding at route response level)
 - [x] Run SDK generator matrix against all fixtures (Orval, OpenAPI Generator, Swagger Codegen)
 - [ ] Investigate AJV's behavior on the pagination/generic-wrapper fixture
-- [ ] Add more TypeScript tools (`openapi-typescript-codegen`, `oazapfts`, `@hey-api/openapi-ts`)
-- [ ] Add non-TypeScript generators (Java, C#, Python, Go, Rust, Kotlin, Swift, AutoRest, NSwag, Kiota)
+- [x] Add more TypeScript tools (`openapi-typescript-codegen`, `oazapfts`, `@hey-api/openapi-ts`, `openapi-typescript`)
+- [ ] Add non-TypeScript generators (Java, C#, Python, Go, Rust, Kotlin, Swift, AutoRest)
+- [x] Add standalone install generators (Kiota, NSwag)
 - [ ] Open focused upstream issues with validator-backed fixtures; include disagreement details for mixed-support fixtures
 
 See the **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** for a step-by-step playbook to implement `$dynamicRef` support in any generator. Use validator-backed fixtures first; include validator disagreement when using mixed-support fixtures.
 
 ## 📢 Outreach
 
-Issues and PRs opened in upstream generator repos.
+Issues and PRs opened in upstream repos.
+
+### SDK Generators
 
 | Generator | Repo | Issue | PR | Status | Updated |
 |---|---|---|---|---|---|
 | Orval | [orval-labs/orval](https://github.com/orval-labs/orval) | — | — | not-started | — |
-| OpenAPI Generator | [OpenAPITools/openapi-generator](https://github.com/OpenAPITools/openapi-generator) | — | — | not-started | — |
-| Swagger Codegen v3 | [swagger-api/swagger-codegen](https://github.com/swagger-api/swagger-codegen) | — | — | not-started | — |
-| AJV | [ajv-validator/ajv](https://github.com/ajv-validator/ajv) | [#1573](https://github.com/ajv-validator/ajv/issues/1573), [#1745](https://github.com/ajv-validator/ajv/issues/1745) | [#2615](https://github.com/ajv-validator/ajv/pull/2615) | in-progress | 2026-05-12 |
+| OpenAPI Generator | [OpenAPITools/openapi-generator](https://github.com/OpenAPITools/openapi-generator) | [#23776](https://github.com/OpenAPITools/openapi-generator/issues/23776) | — | blocked | 2026-05-12 |
+| Swagger Codegen v3 | [swagger-api/swagger-codegen](https://github.com/swagger-api/swagger-codegen) | [#12731](https://github.com/swagger-api/swagger-codegen/issues/12731) | — | blocked | 2026-05-12 |
 
-**Status values:** `not-started` · `in-progress` · `pr-open` · `pr-stale` · `merged` · `rejected` · `superseded` · `wontfix` · `resolved`
+### Validators & Parsers
+
+| Tool | Repo | Issue | PR | Status | Updated |
+|---|---|---|---|---|---|
+| AJV | [ajv-validator/ajv](https://github.com/ajv-validator/ajv) | [#1573](https://github.com/ajv-validator/ajv/issues/1573), [#1745](https://github.com/ajv-validator/ajv/issues/1745) | [#2615](https://github.com/ajv-validator/ajv/pull/2615) | in-progress | 2026-05-12 |
+| swagger-parser | [swagger-api/swagger-parser](https://github.com/swagger-api/swagger-parser) | — | [#2332](https://github.com/swagger-api/swagger-parser/pull/2332) | pr-open | 2026-05-12 |
+
+> **Note:** swagger-parser is a dependency of OpenAPI Generator and Swagger Codegen. Fixing `$dynamicRef`/`$dynamicAnchor` support in swagger-parser is a prerequisite for adding codegen support in those generators.
+
+**Status values:** `not-started` · `in-progress` · `pr-open` · `pr-stale` · `merged` · `rejected` · `superseded` · `wontfix` · `resolved` · `blocked`
 
 ## 🤝 Contributing
 

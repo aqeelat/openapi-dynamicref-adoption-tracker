@@ -33,13 +33,13 @@ OpenAPI document validation:
 
 JSON Schema runtime validation:
 
-| Fixture | AJV 2020 | Hyperjump 2020-12 | Result |
-|---|---|---|---|
-| Baseline duplicated pagination | Pass | Not tested | Pass |
-| Paginated generic | Fails valid user/group pages | Passes valid/invalid user and group pages | Mixed validator support |
-| Paginated inline binding | Fails valid user/group pages | Passes valid/invalid user and group pages | Mixed validator support |
-| Recursive category tree | Pass | Not tested | Pass |
-| Nested workspace resources | Pass | Not tested | Pass |
+| Fixture | AJV 2020 | AJV PR #2615 | Hyperjump 2020-12 | Result |
+|---|---|---|---|---|
+| Baseline duplicated pagination | Pass | Pass | Not tested | Pass |
+| Generic schema binding | Fails valid user/group pages | Passes valid/invalid user and group pages | Passes valid/invalid user and group pages | AJV PR #2615 fixes this |
+| Paginated response (inline) | Fails valid user/group pages | Passes valid/invalid user and group pages | Passes valid/invalid user and group pages | AJV PR #2615 fixes this |
+| Recursive category tree | Pass | Pass | Not tested | Pass |
+| Nested workspace resources | Pass | Fails: "resolves to more than one schema" for multiple same-name `$dynamicAnchor` | Not tested | Separate AJV gap: multiple schemas declaring the same `$dynamicAnchor` name in one document |
 
 ## Pagination Generic Finding
 
@@ -65,7 +65,9 @@ PaginatedUserResponse:
   $ref: '#/components/schemas/PaginatedTemplate'
 ```
 
-Hyperjump evaluates this as intended: user pages require `User[]`, group pages require `Group[]`, and invalid item shapes fail. AJV does not evaluate this as a generic type-parameter binding and instead resolves the dynamic ref back to the pagination template, causing valid item objects to fail with missing pagination fields.
+Hyperjump evaluates this as intended: user pages require `User[]`, group pages require `Group[]`, and invalid item shapes fail. AJV PR [#2615](https://github.com/ajv-validator/ajv/pull/2615) also now evaluates this correctly — valid user/group pages pass and invalid item shapes fail. This PR has not yet been merged.
+
+The nested workspace fixture exposes a separate AJV gap: multiple schemas declaring the same `$dynamicAnchor` name (e.g., both `BaseFolder` and `WorkspaceFolder` declare `$dynamicAnchor: folder`) in a single document causes an "ambiguous reference" error at compile time.
 
 This means the claim that `$dynamicRef` can model generic wrappers is supported by the OAI discussion and by Hyperjump, but tool support is mixed. Upstream generator issues should include the validator matrix rather than relying on one validator.
 

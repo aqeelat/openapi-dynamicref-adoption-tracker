@@ -64,15 +64,15 @@ Run via `node scripts/validate-jsonschema.mjs`. This is standalone fixture resea
 
 Validators: AJV 2020 and Hyperjump 2020-12.
 
-| Fixture | AJV 2020 | Hyperjump 2020-12 | Classification |
-|---|---|---|---|
-| `baseline-duplicated-pagination.yaml` | Valid user page passes; invalid user item fails | Not tested | Control passes |
-| `generic-schema-binding.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Mixed validator support |
-| `paginated-response.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Mixed validator support |
-| `recursive-category-tree.yaml` | Valid localized category tree passes; child missing localized fields fails | Not tested | Runtime check passes |
-| `nested-workspace-resources.yaml` | Valid nested workspace passes; nested folder missing permissions fails | Not tested | Runtime check passes |
+| Fixture | AJV 2020 | AJV PR [#2615](https://github.com/ajv-validator/ajv/pull/2615) | Hyperjump 2020-12 | Classification |
+|---|---|---|---|---|
+| `baseline-duplicated-pagination.yaml` | Pass | Pass | Not tested | Control passes |
+| `generic-schema-binding.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | AJV PR #2615 fixes this |
+| `paginated-response.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | AJV PR #2615 fixes this |
+| `recursive-category-tree.yaml` | Valid localized category tree passes; child missing localized fields fails | Pass | Not tested | Runtime check passes |
+| `nested-workspace-resources.yaml` | Valid nested workspace passes; nested folder missing permissions fails | Fails: "resolves to more than one schema" for multiple same-name `$dynamicAnchor` | Not tested | Separate AJV gap: multiple schemas with same `$dynamicAnchor` name |
 
-AJV currently fails the generic pagination dynamic binding scenarios that Hyperjump validates successfully. These fixtures still follow the JSON Schema dynamic reference/generic pattern, but upstream reports should call out the validator disagreement explicitly.
+AJV PR [#2615](https://github.com/ajv-validator/ajv/pull/2615) fixes the generic pagination dynamic binding pattern. The nested workspace fixture exposes a separate AJV limitation: multiple schemas declaring the same `$dynamicAnchor` name in a single document causes an ambiguous reference error.
 
 ## Fixture To Spec Path
 
