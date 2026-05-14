@@ -172,7 +172,7 @@ Versioned specs are generated from fixtures into `specs/<fixture>/oas-<version>.
 - [x] Add more TypeScript tools (`openapi-typescript-codegen`, `oazapfts`, `@hey-api/openapi-ts`, `openapi-typescript`)
 - [ ] Add non-TypeScript generators (Java, C#, Python, Go, Rust, Kotlin, Swift, AutoRest)
 - [x] Add standalone install generators (Kiota, NSwag)
-- [ ] Open focused upstream issues with validator-backed fixtures; include disagreement details for mixed-support fixtures
+- [ ] Open focused upstream issues with remaining generators; include disagreement details for mixed-support fixtures
 
 See the **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** for a step-by-step playbook to implement `$dynamicRef` support in any generator. Use validator-backed fixtures first; include validator disagreement when using mixed-support fixtures.
 
@@ -184,7 +184,7 @@ Issues and PRs opened in upstream repos.
 
 | Generator | Repo | Issue | PR | Status | Updated |
 |---|---|---|---|---|---|
-| Orval | [orval-labs/orval](https://github.com/orval-labs/orval) | — | — | not-started | — |
+| Orval | [orval-labs/orval](https://github.com/orval-labs/orval) | [#3352](https://github.com/orval-labs/orval/issues/3352) | [#3353](https://github.com/orval-labs/orval/pull/3353) | in-progress | 2026-05-14 |
 | OpenAPI Generator | [OpenAPITools/openapi-generator](https://github.com/OpenAPITools/openapi-generator) | [#23776](https://github.com/OpenAPITools/openapi-generator/issues/23776) | — | blocked | 2026-05-12 |
 | Swagger Codegen v3 | [swagger-api/swagger-codegen](https://github.com/swagger-api/swagger-codegen) | [#12731](https://github.com/swagger-api/swagger-codegen/issues/12731) | — | blocked | 2026-05-12 |
 
