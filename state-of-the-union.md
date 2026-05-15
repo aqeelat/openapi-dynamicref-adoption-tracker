@@ -71,7 +71,9 @@ The nested workspace fixture exposes a separate AJV gap: multiple schemas declar
 
 This means the claim that `$dynamicRef` can model generic wrappers is supported by the OAI discussion and by Hyperjump, but tool support is mixed. Upstream generator issues should include the validator matrix rather than relying on one validator.
 
-## TypeScript SDK Matrix (All Fixtures)
+## TypeScript SDK Matrix Snapshot (Initial 3-Generator Run)
+
+This section is a compatibility snapshot from the initial focused run against Orval, OpenAPI Generator, and Swagger Codegen v3. The live CI matrix now covers additional TypeScript-oriented tools; use GitHub Actions artifacts and tracking issues for current per-tool status.
 
 ### Generation Results
 
@@ -124,26 +126,26 @@ Orval resolves `$dynamicRef` to the fallback `$dynamicAnchor` definition rather 
 
 ## Outreach
 
-Issues and PRs opened in upstream generator repos are tracked in the [Outreach table in README.md](README.md#-outreach).
+Issues and PRs opened in upstream generator repos should be tracked in repository-local GitHub issues and, when available, the GitHub Project board. README intentionally keeps only the durable overview.
 
 ## How to Reproduce
 
 **Stage 1** (run when fixtures change):
 
 ```bash
-./scripts/validate-and-build.sh
+npm run validate:fixtures
 ```
 
 **Stage 2** (run when generator versions change, or after Stage 1):
 
 ```bash
-./scripts/run-matrix.sh
+npm run matrix
 ```
 
 **Optional** — JSON Schema runtime validation (standalone research, not in pipeline):
 
 ```bash
-node scripts/validate-jsonschema.mjs
+npm run validate:jsonschema
 ```
 
 Full logs and generated output are not tracked in git (see `.gitignore`).

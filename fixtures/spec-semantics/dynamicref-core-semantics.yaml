@@ -1,0 +1,217 @@
+openapi: 3.1.0
+info:
+  title: DynamicRef Core Semantics API
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: https://api.dynamicref.test
+security: []
+paths:
+  /semantics/same-resource:
+    get:
+      summary: Same-resource dynamic reference
+      operationId: getSameResourceDynamicRef
+      responses:
+        '200':
+          description: Same-resource dynamic anchor array
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SameResourceDynamicRef'
+  /semantics/dynamic-ref-to-anchor:
+    get:
+      summary: Dynamic reference to plain anchor
+      operationId: getDynamicRefToPlainAnchor
+      responses:
+        '200':
+          description: Dynamic ref to plain anchor array
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DynamicRefToPlainAnchor'
+  /semantics/ref-to-dynamic-anchor:
+    get:
+      summary: Static reference to dynamic anchor
+      operationId: getRefToDynamicAnchor
+      responses:
+        '200':
+          description: Static ref to dynamic anchor array
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefToDynamicAnchor'
+  /semantics/non-matching-dynamic-anchor:
+    get:
+      summary: Dynamic reference with non-matching dynamic anchor
+      operationId: getNonMatchingDynamicAnchor
+      responses:
+        '200':
+          description: Dynamic ref that falls back to ordinary anchor resolution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NonMatchingDynamicAnchor'
+  /semantics/non-fragment-uri:
+    get:
+      summary: Non-fragment URI dynamic reference
+      operationId: getNonFragmentUriDynamicRef
+      responses:
+        '200':
+          description: Non-fragment URI dynamic reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NonFragmentRoot'
+  /semantics/dictionary:
+    get:
+      summary: Multi-parameter generic dictionary
+      operationId: getStringUserDictionary
+      responses:
+        '200':
+          description: Multi-parameter generic dictionary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StringUserDictionary'
+  /semantics/order/defs-first:
+    get:
+      summary: allOf order with definitions first
+      operationId: getOrderDefsFirst
+      responses:
+        '200':
+          description: allOf dynamic anchor before ref
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDefsFirst'
+  /semantics/order/ref-first:
+    get:
+      summary: allOf order with reference first
+      operationId: getOrderRefFirst
+      responses:
+        '200':
+          description: allOf dynamic anchor after ref
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderRefFirst'
+components:
+  schemas:
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+    SameResourceDynamicRef:
+      type: array
+      items:
+        $dynamicRef: '#sameItemType'
+      $defs:
+        item:
+          $dynamicAnchor: sameItemType
+          type: string
+    DynamicRefToPlainAnchor:
+      type: array
+      items:
+        $dynamicRef: '#plainItemType'
+      $defs:
+        item:
+          $anchor: plainItemType
+          type: string
+    RefToDynamicAnchor:
+      type: array
+      items:
+        $ref: '#/components/schemas/RefToDynamicAnchor/$defs/item'
+      $defs:
+        item:
+          $dynamicAnchor: refItemType
+          type: string
+    NonMatchingDynamicAnchor:
+      type: array
+      items:
+        $dynamicRef: '#fallbackItemType'
+      $defs:
+        item:
+          $anchor: fallbackItemType
+          $dynamicAnchor: otherType
+          type: number
+    NonFragmentRoot:
+      $id: https://example.com/schemas/non-fragment-root
+      $dynamicAnchor: meta
+      type: object
+      required: [foo]
+      properties:
+        foo:
+          const: pass
+        bar:
+          $ref: '#/components/schemas/NonFragmentBar'
+    NonFragmentBar:
+      $id: https://example.com/schemas/non-fragment-bar
+      type: object
+      required: [baz]
+      properties:
+        baz:
+          $dynamicRef: https://example.com/schemas/non-fragment-root#meta
+    DictionaryTemplate:
+      $id: https://example.com/schemas/DictionaryTemplate
+      $defs:
+        keyType:
+          $dynamicAnchor: keyType
+          not: {}
+        valueType:
+          $dynamicAnchor: valueType
+          not: {}
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            type: object
+            required: [key, value]
+            properties:
+              key:
+                $dynamicRef: '#keyType'
+              value:
+                $dynamicRef: '#valueType'
+    StringUserDictionary:
+      $id: https://example.com/schemas/StringUserDictionary
+      $defs:
+        keyType:
+          $dynamicAnchor: keyType
+          type: string
+        valueType:
+          $dynamicAnchor: valueType
+          $ref: '#/components/schemas/User'
+      $ref: '#/components/schemas/DictionaryTemplate'
+    OrderGenericList:
+      $id: https://example.com/schemas/OrderGenericList
+      $defs:
+        itemType:
+          $dynamicAnchor: orderItemType
+          not: {}
+      type: array
+      items:
+        $dynamicRef: '#orderItemType'
+    OrderDefsFirst:
+      $id: https://example.com/schemas/OrderDefsFirst
+      allOf:
+        - $defs:
+            itemType:
+              $dynamicAnchor: orderItemType
+              type: string
+        - $ref: '#/components/schemas/OrderGenericList'
+    OrderRefFirst:
+      $id: https://example.com/schemas/OrderRefFirst
+      allOf:
+        - $ref: '#/components/schemas/OrderGenericList'
+        - $defs:
+            itemType:
+              $dynamicAnchor: orderItemType
+              type: string

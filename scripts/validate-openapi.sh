@@ -3,6 +3,7 @@ set -u
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FIXTURES_DIR="$REPO_ROOT/fixtures"
+SEMANTICS_DIR="$FIXTURES_DIR/spec-semantics"
 
 TOOLS=(redocly openapi-spec-validator spectral swagger-cli)
 
@@ -12,21 +13,28 @@ run_tool() {
 
   case "$tool" in
     redocly)
-      npx --yes @redocly/cli lint "$fixture"
+      npx --no-install redocly lint "$fixture"
       ;;
     openapi-spec-validator)
-      uvx openapi-spec-validator "$fixture"
+      uvx --from openapi-spec-validator==0.7.2 openapi-spec-validator "$fixture"
       ;;
     spectral)
-      npx --yes @stoplight/spectral-cli lint "$fixture"
+      npx --no-install spectral lint "$fixture"
       ;;
     swagger-cli)
-      npx --yes @apidevtools/swagger-cli validate "$fixture"
+      npx --no-install swagger-cli validate "$fixture"
       ;;
   esac
 }
 
-for fixture in "$FIXTURES_DIR"/*.yaml; do
+validation_failed=0
+fixtures=("$FIXTURES_DIR"/*.yaml)
+if [ -d "$SEMANTICS_DIR" ]; then
+  fixtures+=("$SEMANTICS_DIR"/*.yaml)
+fi
+
+for fixture in "${fixtures[@]}"; do
+  [ -e "$fixture" ] || continue
   echo "=== $(basename "$fixture") ==="
   for tool in "${TOOLS[@]}"; do
     printf '%-24s' "$tool"
@@ -34,8 +42,11 @@ for fixture in "$FIXTURES_DIR"/*.yaml; do
       echo "PASS"
     else
       echo "FAIL"
+      validation_failed=1
       sed 's/^/  /' /tmp/openapi-dynamicref-validation.log
     fi
   done
   echo ""
 done
+
+exit "$validation_failed"

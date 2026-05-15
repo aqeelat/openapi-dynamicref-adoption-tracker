@@ -1,0 +1,31 @@
+{
+  "name": "openapi-dynamicref-adoption-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:specs": "node scripts/build-specs.mjs",
+    "matrix": "./scripts/run-matrix.sh",
+    "validate:fixtures": "./scripts/validate-and-build.sh",
+    "validate:jsonschema": "node scripts/validate-jsonschema.mjs",
+    "validate:openapi": "./scripts/validate-openapi.sh"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-cli": "4.0.4",
+    "@hey-api/openapi-ts": "0.97.1",
+    "@hyperjump/json-schema": "1.17.6",
+    "@openapitools/openapi-generator-cli": "2.32.0",
+    "@redocly/cli": "2.30.6",
+    "@stoplight/spectral-cli": "6.16.0",
+    "ajv": "8.20.0",
+    "js-yaml": "4.1.1",
+    "oazapfts": "7.5.0",
+    "openapi-typescript": "7.13.0",
+    "openapi-typescript-codegen": "0.30.0",
+    "orval": "8.9.1",
+    "typescript": "5.9.3"
+  }
+}

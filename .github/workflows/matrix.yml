@@ -27,8 +27,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: npm install --no-save js-yaml
-      - run: node scripts/build-specs.mjs
+      - uses: astral-sh/setup-uv@v5
+      - run: npm ci
+      - run: ./scripts/validate-and-build.sh
+      - name: Verify generated specs are committed
+        run: git diff --exit-code -- specs/
       - uses: actions/upload-artifact@v4
         with:
           name: specs
@@ -69,47 +72,57 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Check manual dispatch filter
-        if: github.event_name == 'workflow_dispatch'
+      - name: Select matrix cell
+        id: select
         run: |
+          selected=true
           tools="${{ github.event.inputs.tools }}"
           scenarios="${{ github.event.inputs.scenarios }}"
-          if [ -n "$tools" ]; then
-            echo "$tools" | tr ',' '\n' | grep -qx "${{ matrix.tool }}" || exit 0
+          contains_csv() {
+            value="$1"
+            needle="$2"
+            [ -z "$value" ] && return 0
+            echo "$value" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -qx "$needle"
+          }
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            contains_csv "$tools" "${{ matrix.tool }}" || selected=false
+            contains_csv "$scenarios" "${{ matrix.scenario }}" || selected=false
           fi
-          if [ -n "$scenarios" ]; then
-            echo "$scenarios" | tr ',' '\n' | grep -qx "${{ matrix.scenario }}" || exit 0
-          fi
+          echo "selected=$selected" >> "$GITHUB_OUTPUT"
+          echo "selected=$selected"
 
       - uses: actions/download-artifact@v4
+        if: steps.select.outputs.selected == 'true'
         with:
           name: specs
           path: specs/
 
       - name: Install .NET tools
-        if: matrix.tool == 'kiota' || matrix.tool == 'nswag'
+        if: steps.select.outputs.selected == 'true' && (matrix.tool == 'kiota' || matrix.tool == 'nswag')
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
       - name: Install Kiota
-        if: matrix.tool == 'kiota'
+        if: steps.select.outputs.selected == 'true' && matrix.tool == 'kiota'
         run: dotnet tool install --global Microsoft.OpenApi.Kiota
 
       - name: Install NSwag
-        if: matrix.tool == 'nswag'
+        if: steps.select.outputs.selected == 'true' && matrix.tool == 'nswag'
         run: dotnet tool install --global NSwag.GlobalTool
 
       - name: Install npm dependencies
-        run: npm install --no-save js-yaml typescript
+        if: steps.select.outputs.selected == 'true'
+        run: npm ci
 
       - name: Generate SDK
+        if: steps.select.outputs.selected == 'true'
         id: generate
         run: node scripts/matrix-runner.mjs --tools=${{ matrix.tool }} --scenarios=${{ matrix.scenario }} --versions=${{ matrix.version }} --no-typecheck --no-analysis
         continue-on-error: true
 
       - name: Typecheck
-        if: steps.generate.outcome == 'success'
+        if: steps.select.outputs.selected == 'true' && steps.generate.outcome == 'success'
         id: typecheck
         run: |
           output_dir="generated/${{ matrix.tool }}/${{ matrix.scenario }}/${{ matrix.version }}"
@@ -127,21 +140,29 @@ jobs:
         continue-on-error: true
 
       - name: Analyze quality
-        if: steps.generate.outcome == 'success'
+        if: steps.select.outputs.selected == 'true' && steps.generate.outcome == 'success'
+        env:
+          MATRIX_RESULTS_FILE: logs/matrix-results-${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.json
         run: node scripts/matrix-runner.mjs --tools=${{ matrix.tool }} --scenarios=${{ matrix.scenario }} --versions=${{ matrix.version }} --no-generate --no-typecheck
 
       - name: Write cell result
         if: always()
         run: |
           mkdir -p cell-results
+          result_file="cell-results/${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.env"
+          if [ "${{ steps.select.outputs.selected }}" != "true" ]; then
+            echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.generate=filtered" >> "$result_file"
+            echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.typecheck=filtered" >> "$result_file"
+            exit 0
+          fi
           gen_outcome="${{ steps.generate.outcome }}"
           tc_outcome="${{ steps.typecheck.outcome }}"
           tc_skip="${{ steps.typecheck.outputs.skip }}"
-          echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.generate=${gen_outcome:-skipped}" >> cell-results/results.env
+          echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.generate=${gen_outcome:-skipped}" >> "$result_file"
           if [ "$tc_skip" = "true" ]; then
-            echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.typecheck=skip" >> cell-results/results.env
+            echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.typecheck=skip" >> "$result_file"
           else
-            echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.typecheck=${tc_outcome:-skipped}" >> cell-results/results.env
+            echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.typecheck=${tc_outcome:-skipped}" >> "$result_file"
           fi
 
       - name: Upload generated output
@@ -153,8 +174,8 @@ jobs:
             generated/${{ matrix.tool }}/${{ matrix.scenario }}/${{ matrix.version }}/
             logs/${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.log
             logs/typecheck-${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.log
-            logs/matrix-results.json
-            cell-results/results.env
+            logs/matrix-results-${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.json
+            cell-results/${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.env
           retention-days: 7
           if-no-files-found: ignore
 
@@ -181,13 +202,13 @@ jobs:
           echo "| Tool | Scenario | Version | Generate | Typecheck |" >> "$GITHUB_STEP_SUMMARY"
           echo "|------|----------|---------|----------|-----------|" >> "$GITHUB_STEP_SUMMARY"
 
-          for envf in all-results/cell-results/results.env; do
+          for envf in all-results/cell-results/*.env; do
             [ -f "$envf" ] || continue
             while IFS='=' read -r key value; do
               IFS='.' read -r tool scenario version field <<< "$key"
               [ "$field" = "generate" ] || continue
               tc_key="${tool}.${scenario}.${version}.typecheck"
-              tc_value=$(grep "^${tc_key}=" all-results/cell-results/results.env 2>/dev/null | cut -d= -f2)
+              tc_value=$(grep -h "^${tc_key}=" all-results/cell-results/*.env 2>/dev/null | cut -d= -f2 | head -n 1)
               gen_label="${value}"
               tc_label="${tc_value:-N/A}"
               echo "| ${tool} | ${scenario} | ${version} | ${gen_label} | ${tc_label} |" >> "$GITHUB_STEP_SUMMARY"
@@ -197,19 +218,25 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Artifacts" >> "$GITHUB_STEP_SUMMARY"
           echo "Generated output and logs are available as workflow artifacts." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Generator and typecheck failures are report-only. Fixture validation and generated spec freshness are the CI gates." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Load quality results
         run: |
           echo "### Type Quality" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [ -f all-results/logs/matrix-results.json ]; then
+          if compgen -G "all-results/logs/matrix-results-*.json" > /dev/null; then
             node -e "
-              const data = JSON.parse(require('fs').readFileSync('all-results/logs/matrix-results.json', 'utf8'));
+              const fs = require('fs');
+              const files = fs.readdirSync('all-results/logs').filter((f) => f.startsWith('matrix-results-') && f.endsWith('.json'));
               console.log('| Tool | Scenario | Version | Fidelity | unknown | any |');
               console.log('|------|----------|---------|----------|---------|-----|');
-              for (const r of (data.results || [])) {
-                if (r.quality) {
-                  console.log('| ' + [r.tool, r.scenario, r.version, r.quality.fidelity, r.quality.unknownCount, r.quality.anyCount].join(' | ') + ' |');
+              for (const file of files) {
+                const data = JSON.parse(fs.readFileSync('all-results/logs/' + file, 'utf8'));
+                for (const r of (data.results || [])) {
+                  if (r.quality) {
+                    console.log('| ' + [r.tool, r.scenario, r.version, r.quality.fidelity, r.quality.unknownCount, r.quality.anyCount].join(' | ') + ' |');
+                  }
                 }
               }
             " >> "$GITHUB_STEP_SUMMARY"

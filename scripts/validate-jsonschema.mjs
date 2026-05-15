@@ -209,6 +209,82 @@ const cases = [
     data: { items: [{ id: 'u1', name: 'Not a user' }], total: 1, page: 1, pageSize: 10 },
     expected: false,
   },
+  {
+    name: 'core semantics: same-resource dynamicRef behaves like ref',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'SameResourceDynamicRef',
+    data: ['alpha', 'beta'],
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'core semantics: same-resource dynamicRef rejects wrong item type',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'SameResourceDynamicRef',
+    data: ['alpha', 42],
+    expected: false,
+  },
+  {
+    name: 'core semantics: dynamicRef to plain anchor behaves like ref',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'DynamicRefToPlainAnchor',
+    data: ['alpha', 'beta'],
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'core semantics: ref to dynamicAnchor behaves like ref',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'RefToDynamicAnchor',
+    data: ['alpha', 'beta'],
+    expected: true,
+  },
+  {
+    name: 'core semantics: non-matching dynamicAnchor falls back to plain anchor',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'NonMatchingDynamicAnchor',
+    data: [1, 2],
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'core semantics: non-matching dynamicAnchor rejects fallback type mismatch',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'NonMatchingDynamicAnchor',
+    data: ['alpha'],
+    expected: false,
+  },
+  {
+    name: 'core semantics: non-fragment URI dynamicRef validates target anchor',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'NonFragmentRoot',
+    data: { foo: 'pass', bar: { baz: { foo: 'pass' } } },
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'core semantics: non-fragment URI dynamicRef rejects target mismatch',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'NonFragmentRoot',
+    data: { foo: 'pass', bar: { baz: { foo: 'fail' } } },
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'core semantics: multi-parameter generic valid dictionary (AJV currently fails this pattern)',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'StringUserDictionary',
+    data: { entries: [{ key: 'owner', value: { id: 'u1', email: 'user@example.com' } }] },
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'core semantics: multi-parameter generic invalid dictionary item',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'StringUserDictionary',
+    data: { entries: [{ key: 'owner', value: { id: 'u1', name: 'Not a user' } }] },
+    expected: false,
+  },
 ];
 
 const inlineCases = [
@@ -314,13 +390,111 @@ const hyperjumpInlineCases = [
   },
 ];
 
+const hyperjumpSemanticsCases = [
+  {
+    name: 'hyperjump core semantics: same-resource dynamicRef behaves like ref',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'SameResourceDynamicRef',
+    data: ['alpha', 'beta'],
+    expected: true,
+  },
+  {
+    name: 'hyperjump core semantics: same-resource dynamicRef rejects wrong item type',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'SameResourceDynamicRef',
+    data: ['alpha', 42],
+    expected: false,
+  },
+  {
+    name: 'hyperjump core semantics: dynamicRef to plain anchor behaves like ref',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'DynamicRefToPlainAnchor',
+    data: ['alpha', 'beta'],
+    expected: true,
+  },
+  {
+    name: 'hyperjump core semantics: ref to dynamicAnchor behaves like ref',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'RefToDynamicAnchor',
+    data: ['alpha', 'beta'],
+    expected: true,
+  },
+  {
+    name: 'hyperjump core semantics: non-matching dynamicAnchor falls back to plain anchor',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'NonMatchingDynamicAnchor',
+    data: [1, 2],
+    expected: true,
+  },
+  {
+    name: 'hyperjump core semantics: non-fragment URI dynamicRef validates target anchor',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'NonFragmentRoot',
+    data: { foo: 'pass', bar: { baz: { foo: 'pass' } } },
+    expected: true,
+  },
+  {
+    name: 'hyperjump core semantics: non-fragment URI dynamicRef rejects target mismatch',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'NonFragmentRoot',
+    data: { foo: 'pass', bar: { baz: { foo: 'fail' } } },
+    expected: false,
+  },
+  {
+    name: 'hyperjump core semantics: multi-parameter generic valid dictionary',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'StringUserDictionary',
+    data: { entries: [{ key: 'owner', value: { id: 'u1', email: 'user@example.com' } }] },
+    expected: true,
+  },
+  {
+    name: 'hyperjump core semantics: multi-parameter generic invalid dictionary item',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'StringUserDictionary',
+    data: { entries: [{ key: 'owner', value: { id: 'u1', name: 'Not a user' } }] },
+    expected: false,
+  },
+  {
+    name: 'hyperjump core semantics: allOf order defs first',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'OrderDefsFirst',
+    data: ['alpha', 'beta'],
+    expected: true,
+  },
+  {
+    name: 'hyperjump core semantics: allOf order ref first',
+    fixture: 'spec-semantics/dynamicref-core-semantics.yaml',
+    schema: 'OrderRefFirst',
+    data: ['alpha', 'beta'],
+    expected: true,
+  },
+];
+
 let failed = false;
 
 console.log('=== AJV 2020 ===');
 for (const testCase of cases) {
-  const validate = compileSchema(testCase.fixture, testCase.schema);
-  const actual = validate(testCase.data);
-  const pass = actual === testCase.expected;
+  let validate;
+  let actual;
+  let pass = false;
+
+  try {
+    validate = compileSchema(testCase.fixture, testCase.schema);
+    actual = validate(testCase.data);
+    pass = actual === testCase.expected;
+  } catch (error) {
+    if (testCase.knownGap) {
+      console.log(`KNOWN-GAP ${testCase.name}`);
+      console.log(`  expected=${testCase.expected} actual=error`);
+      console.log(`  error=${error.message}`);
+      continue;
+    }
+
+    failed = true;
+    console.log(`FAIL ${testCase.name}`);
+    console.log(`  error=${error.message}`);
+    continue;
+  }
 
   const label = pass && testCase.knownGap ? 'KNOWN-GAP' : pass ? 'PASS' : 'FAIL';
   console.log(`${label} ${testCase.name}`);
@@ -328,7 +502,7 @@ for (const testCase of cases) {
 
   if (!pass) {
     failed = true;
-    console.log(`  errors=${JSON.stringify(validate.errors, null, 2)}`);
+    console.log(`  errors=${JSON.stringify(validate?.errors, null, 2)}`);
   }
 }
 
@@ -362,6 +536,18 @@ for (const testCase of hyperjumpCases) {
 
 for (const testCase of hyperjumpInlineCases) {
   const actual = await validateInlineWithHyperjump(testCase.fixture, testCase.operationPath, testCase.responseCode, testCase.data);
+  const pass = actual === testCase.expected;
+
+  console.log(`${pass ? 'PASS' : 'FAIL'} ${testCase.name}`);
+  console.log(`  expected=${testCase.expected} actual=${actual}`);
+
+  if (!pass) {
+    failed = true;
+  }
+}
+
+for (const testCase of hyperjumpSemanticsCases) {
+  const actual = await validateWithHyperjump(testCase.fixture, testCase.schema, testCase.data);
   const pass = actual === testCase.expected;
 
   console.log(`${pass ? 'PASS' : 'FAIL'} ${testCase.name}`);

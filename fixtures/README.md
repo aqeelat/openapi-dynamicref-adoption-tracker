@@ -1,11 +1,11 @@
 # Fixtures
 
-Fixtures are the authored source-of-truth scenarios for this repository. Generated versioned OpenAPI specs under `specs/` are derived from these files.
+Fixtures are the authored source-of-truth scenarios for this repository. The top-level fixtures are the SDK generator matrix scenarios, and generated versioned OpenAPI specs under `specs/` are derived from those files.
 
-Do not edit generated specs directly. Edit a fixture, then run:
+Do not edit generated specs directly. Edit a top-level fixture, then run:
 
 ```bash
-node scripts/build-specs.mjs
+npm run validate:fixtures
 ```
 
 ## Scenarios
@@ -18,6 +18,14 @@ node scripts/build-specs.mjs
 | `recursive-category-tree.yaml` | Canonical dynamic recursive override | Tests dynamic scope for recursive schemas (`children` should use the active category type) |
 | `nested-workspace-resources.yaml` | Multiple anchors and nested dynamic refs | Tests more than one `$dynamicAnchor` / `$dynamicRef` pair in a nested resource graph |
 
+## Spec Semantics Fixtures
+
+`fixtures/spec-semantics/` contains focused OpenAPI documents for JSON Schema `$dynamicRef` semantics that are useful for parser and validator work but are intentionally kept out of the SDK generator matrix.
+
+| Fixture | What It Tests |
+|---|---|
+| `spec-semantics/dynamicref-core-semantics.yaml` | Same-resource dynamic anchors, `$dynamicRef` to `$anchor`, `$ref` to `$dynamicAnchor`, fallback to ordinary anchor behavior, non-fragment URI dynamic refs, multi-parameter generic binding, and allOf sibling order |
+
 ## Why Keep The Baseline?
 
 The baseline is a control. If a generator cannot produce useful types for explicit paginated wrappers, then a failure on `generic-schema-binding.yaml` is not evidence of a `$dynamicRef` bug.
@@ -28,7 +36,7 @@ Fixtures are validated before they are used for SDK generator outreach. This val
 
 | Check | Purpose |
 |---|---|
-| OpenAPI document validation | Confirms each fixture is a structurally valid OpenAPI document before it enters the SDK matrix |
+| OpenAPI document validation | Confirms SDK matrix and spec-semantics fixtures are structurally valid OpenAPI documents |
 | JSON Schema runtime validation | Confirms valid and invalid JSON instances behave as expected for the `$dynamicRef` pattern, where validator support exists |
 
 Pipeline commands:
@@ -41,14 +49,14 @@ Pipeline commands:
 Standalone JSON Schema research:
 
 ```bash
-node scripts/validate-jsonschema.mjs
+npm run validate:jsonschema
 ```
 
 Do not present one JSON Schema validator as authoritative when validators disagree. If validators disagree, include the disagreement in upstream issues and classify the fixture as mixed validator support.
 
 ## OpenAPI Document Validation
 
-Run via `scripts/validate-openapi.sh` as part of the Stage 1 pipeline.
+Run via `scripts/validate-openapi.sh` as part of the Stage 1 pipeline. This includes top-level SDK matrix fixtures and `fixtures/spec-semantics/*.yaml`.
 
 | Fixture | Redocly | openapi-spec-validator | Spectral | swagger-cli |
 |---|---|---|---|---|
@@ -57,10 +65,11 @@ Run via `scripts/validate-openapi.sh` as part of the Stage 1 pipeline.
 | `paginated-response.yaml` | Pass | Pass | Pass | Pass |
 | `recursive-category-tree.yaml` | Pass | Pass | Pass | Pass |
 | `nested-workspace-resources.yaml` | Pass | Pass | Pass | Pass |
+| `spec-semantics/dynamicref-core-semantics.yaml` | Pass | Pass | Pass | Pass |
 
 ## JSON Schema Runtime Validation
 
-Run via `node scripts/validate-jsonschema.mjs`. This is standalone fixture research, not the main SDK generator matrix.
+Run via `npm run validate:jsonschema`. This is standalone fixture research, not the main SDK generator matrix.
 
 Validators: AJV 2020 and Hyperjump 2020-12.
 
@@ -71,6 +80,7 @@ Validators: AJV 2020 and Hyperjump 2020-12.
 | `paginated-response.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | AJV PR #2615 fixes this |
 | `recursive-category-tree.yaml` | Valid localized category tree passes; child missing localized fields fails | Pass | Not tested | Runtime check passes |
 | `nested-workspace-resources.yaml` | Valid nested workspace passes; nested folder missing permissions fails | Fails: "resolves to more than one schema" for multiple same-name `$dynamicAnchor` | Not tested | Separate AJV gap: multiple schemas with same `$dynamicAnchor` name |
+| `spec-semantics/dynamicref-core-semantics.yaml` | `$ref` to `$dynamicAnchor` passes; several `$dynamicRef` core cases are known gaps, including non-fragment URI refs | Not tested | Core cases, non-fragment URI refs, allOf order, and multi-parameter generic cases pass | Semantics fixture tier; AJV gaps are documented by case output |
 
 AJV PR [#2615](https://github.com/ajv-validator/ajv/pull/2615) fixes the generic pagination dynamic binding pattern. The nested workspace fixture exposes a separate AJV limitation: multiple schemas declaring the same `$dynamicAnchor` name in a single document causes an ambiguous reference error.
 
@@ -86,3 +96,5 @@ specs/<scenario>/oas-3.2.0.json
 ```
 
 The generated specs should differ only by top-level `openapi` version unless a scenario documents a version-specific exception.
+
+Spec-semantics fixtures are validated in place and are not expanded into the SDK matrix under `specs/`.

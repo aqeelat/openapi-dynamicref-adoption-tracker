@@ -13,6 +13,15 @@ const REPO_ROOT = resolve(__dirname, '..');
 const CONCURRENCY = parseInt(process.env.MATRIX_CONCURRENCY || '8', 10);
 const TIMEOUT_MS = 120_000;
 
+const NPM_PACKAGES = {
+  orval: 'orval@8.9.1',
+  openapiGenerator: '@openapitools/openapi-generator-cli@2.32.0',
+  openapiTypescript: 'openapi-typescript@7.13.0',
+  heyApi: '@hey-api/openapi-ts@0.97.1',
+  openapiTypescriptCodegen: 'openapi-typescript-codegen@0.30.0',
+  oazapfts: 'oazapfts@7.5.0',
+};
+
 const SCENARIOS = [
   'baseline-duplicated-pagination',
   'generic-schema-binding',
@@ -42,9 +51,10 @@ const TOOLS = [
     id: 'orval',
     label: 'Orval',
     type: 'npx',
+    npxPackage: NPM_PACKAGES.orval,
     generate: ({ spec, outputDir, scenario, version }) => {
       const project = `${scenario.replace(/-/g, '_')}_${version.replace(/\./g, '_')}`;
-      return `npx --yes orval --config "${REPO_ROOT}/orval.config.ts" --project ${project}`;
+      return `npx --yes ${NPM_PACKAGES.orval} --config "${REPO_ROOT}/orval.config.ts" --project ${project}`;
     },
     outputDir: (base, scenario, version) => `${base}/orval/${scenario}/${version}`,
   },
@@ -52,9 +62,9 @@ const TOOLS = [
     id: 'openapi-generator',
     label: 'OpenAPI Generator',
     type: 'npx',
-    npxPackage: '@openapitools/openapi-generator-cli',
+    npxPackage: NPM_PACKAGES.openapiGenerator,
     generate: ({ spec, outputDir }) =>
-      `npx --yes @openapitools/openapi-generator-cli generate -i "${spec}" -g typescript-fetch -o "${outputDir}"`,
+      `npx --yes ${NPM_PACKAGES.openapiGenerator} generate -i "${spec}" -g typescript-fetch -o "${outputDir}"`,
     outputDir: (base, scenario, version) => `${base}/openapi-generator/${scenario}/${version}`,
   },
   {
@@ -70,8 +80,9 @@ const TOOLS = [
     id: 'openapi-typescript',
     label: 'openapi-typescript',
     type: 'npx',
+    npxPackage: NPM_PACKAGES.openapiTypescript,
     generate: ({ spec, outputDir }) =>
-      `npx --yes openapi-typescript "${spec}" -o "${outputDir}/types.d.ts"`,
+      `npx --yes ${NPM_PACKAGES.openapiTypescript} "${spec}" -o "${outputDir}/types.d.ts"`,
     outputDir: (base, scenario, version) => `${base}/openapi-typescript/${scenario}/${version}`,
     declOnly: true,
   },
@@ -79,26 +90,27 @@ const TOOLS = [
     id: 'hey-api',
     label: '@hey-api/openapi-ts',
     type: 'npx',
-    npxPackage: '@hey-api/openapi-ts',
+    npxPackage: NPM_PACKAGES.heyApi,
     generate: ({ spec, outputDir }) =>
-      `npx --yes @hey-api/openapi-ts -i "${spec}" -o "${outputDir}" -c @hey-api/client-fetch`,
+      `npx --yes ${NPM_PACKAGES.heyApi} -i "${spec}" -o "${outputDir}" -c @hey-api/client-fetch`,
     outputDir: (base, scenario, version) => `${base}/hey-api/${scenario}/${version}`,
   },
   {
     id: 'openapi-typescript-codegen',
     label: 'openapi-typescript-codegen',
     type: 'npx',
-    npxPackage: 'openapi-typescript-codegen',
+    npxPackage: NPM_PACKAGES.openapiTypescriptCodegen,
     generate: ({ spec, outputDir }) =>
-      `npx --yes openapi-typescript-codegen -i "${spec}" -o "${outputDir}"`,
+      `npx --yes ${NPM_PACKAGES.openapiTypescriptCodegen} -i "${spec}" -o "${outputDir}"`,
     outputDir: (base, scenario, version) => `${base}/openapi-typescript-codegen/${scenario}/${version}`,
   },
   {
     id: 'oazapfts',
     label: 'oazapfts',
     type: 'npx',
+    npxPackage: NPM_PACKAGES.oazapfts,
     generate: ({ spec, outputDir }) =>
-      `npx --yes oazapfts "${spec}" "${outputDir}/api.ts"`,
+      `npx --yes ${NPM_PACKAGES.oazapfts} "${spec}" "${outputDir}/api.ts"`,
     outputDir: (base, scenario, version) => `${base}/oazapfts/${scenario}/${version}`,
   },
   {
@@ -421,9 +433,9 @@ async function main() {
     for (const pkg of packages) {
       process.stdout.write(`  ${pkg}...`);
       try {
-        const cmd = pkg === 'orval'
+        const cmd = pkg.startsWith('orval@')
           ? `npx --yes ${pkg} --version`
-          : pkg === '@openapitools/openapi-generator-cli'
+          : pkg.startsWith('@openapitools/openapi-generator-cli@')
             ? `npx --yes ${pkg} version`
             : `npx --yes ${pkg} --help`;
         execSync(cmd, { timeout: 120_000, stdio: 'pipe' });
@@ -594,7 +606,9 @@ async function main() {
     printTable('Type Quality (DynamicRef Fidelity)', qHeaders, qRows);
   }
 
-  const summaryFile = `${REPO_ROOT}/logs/matrix-results.json`;
+  const summaryFile = process.env.MATRIX_RESULTS_FILE
+    ? resolve(REPO_ROOT, process.env.MATRIX_RESULTS_FILE)
+    : `${REPO_ROOT}/logs/matrix-results.json`;
   const summary = {
     timestamp: new Date().toISOString(),
     tools: activeTools.map(t => t.id),

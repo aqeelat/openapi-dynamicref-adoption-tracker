@@ -2,14 +2,14 @@
 
 ## Prerequisites
 
-- Node.js (v18+)
+- Node.js (v22 in CI; v20+ locally)
 - Docker (for Swagger Codegen v3; optional for other tools)
 - `uv` for `openapi-spec-validator` (`brew install uv` or see https://docs.astral.sh/uv/)
 
-Install local dependencies:
+Install pinned local dependencies:
 
 ```bash
-npm install --no-save js-yaml
+npm ci
 ```
 
 Optional tools (installed on-demand, skipped if unavailable):
@@ -27,16 +27,18 @@ Optional tools (installed on-demand, skipped if unavailable):
 ## Stage 1: Validate & Build
 
 ```bash
-./scripts/validate-and-build.sh
+npm run validate:fixtures
 ```
 
 1. **OpenAPI document validation** — Redocly, openapi-spec-validator, Spectral, swagger-cli
 2. **Spec generation** — regenerates `specs/<fixture>/oas-<version>.json`
 
+CI also checks `git diff --exit-code -- specs/` after Stage 1. Fixture validity and generated spec freshness are gating checks.
+
 ## Stage 2: Run the SDK Generation Matrix
 
 ```bash
-./scripts/run-matrix.sh
+npm run matrix
 ```
 
 Runs all 9 generators × 5 scenarios × 4 OAS versions in parallel (default: 8 workers). Generators that aren't installed are skipped with a clear message.
@@ -100,6 +102,15 @@ Push to `main` or open a PR to trigger `.github/workflows/matrix.yml`, which run
 - Generated output as downloadable artifacts
 - Summary posted to the workflow run page
 
+Generator and strict TypeScript failures are report-only in CI. They are captured in summaries and artifacts but do not fail the workflow. Fixture validation and generated spec freshness fail the workflow.
+
+Manual dispatch accepts optional comma-separated filters:
+
+```text
+tools=orval,openapi-typescript
+scenarios=generic-schema-binding,recursive-category-tree
+```
+
 ## Inspect Generated Types
 
 ```bash
@@ -113,8 +124,7 @@ For dynamicRef fixtures, the desired result is concrete types (e.g., `items: Use
 ## Optional: JSON Schema Runtime Validation
 
 ```bash
-npm install --no-save ajv @hyperjump/json-schema
-node scripts/validate-jsonschema.mjs
+npm run validate:jsonschema
 ```
 
 Standalone research tool — not part of the pipeline.
@@ -126,5 +136,5 @@ After running either stage:
 1. Update `README.md` results tables with new pass/fail statuses
 2. Update `fixtures/README.md` if fixture validation behavior changed
 3. Update `state-of-the-union.md` with any new findings
-4. Update the Outreach table if issues/PRs are involved
+4. Update or create the relevant GitHub tracking issue if issues/PRs are involved
 5. Include inline excerpts of generated types as evidence (do not commit raw logs)

@@ -95,7 +95,7 @@ gh pr list -R <org>/<repo> --search "dynamicRef OR dynamicAnchor OR dynamic-ref 
 | **Open PR, active** | Recent activity (< 30 days), CI passing | **Stop.** Summarize the PR to the user (approach, test coverage, current status) and ask for instructions. Do not duplicate work. |
 | **Open PR, stale** | No activity > 30 days, may have failing CI | Summarize to the user. Recommend: revive (rebase + fix) or start fresh. Ask which. |
 | **Open PR, draft** | Marked as draft | **Stop.** Summarize to the user and ask for instructions. The author may still be working on it. |
-| **Merged PR** | Merged status | Verify the fix works against our test specs (see Step 5). If it works, update the Outreach table in the tracker's `README.md` as `merged` and stop. If not, open a new issue describing the remaining gap. |
+| **Merged PR** | Merged status | Verify the fix works against our test specs (see Step 5). If it works, update the relevant tracker GitHub issue as verified and stop. If not, open a new issue describing the remaining gap. |
 | **Closed PR (rejected)** | Closed without merge | Read the rejection reasons. Understand what went wrong. Start fresh but avoid the same mistakes. Open a new issue if needed, link the prior PR. |
 
 When presenting a summary to the user, include:
@@ -390,7 +390,7 @@ EOF
 
 ## Step 8: Update the Tracker
 
-After the PR is open, update the Outreach table in the tracker repo's `README.md`:
+After the PR is open, update or create the relevant tracker GitHub issue:
 
 1. Find or add the generator row in the "Outreach" table.
 2. Fill in the Issue and/or PR links.
@@ -433,7 +433,7 @@ After opening an issue or PR, help it gain traction with the maintainers. Most o
 
 - If a PR goes stale after 2+ weeks with no review, post a polite comment: "Bumping this — happy to rebase or adjust the approach if there's feedback. Is there anything blocking review?"
 - If a maintainer pushes back on scope, offer to gate the feature behind a config flag: "I can add an opt-in flag so this only activates when users explicitly enable `$dynamicRef` support."
-- If a PR is rejected, thank the maintainer, document the reasoning in the Outreach table in the tracker's `README.md`, and move on to the next generator. Not every project will accept the change.
+- If a PR is rejected, thank the maintainer, document the reasoning in the relevant tracker GitHub issue, and move on to the next generator. Not every project will accept the change.
 
 ---
 
