@@ -18,43 +18,6 @@ SDK generators are the first priority because they are where users see broken ou
 
 See [State of the Union](state-of-the-union.md) for the detailed strategy.
 
-## Quickstart
-
-Install pinned local dependencies:
-
-```bash
-npm ci
-```
-
-Validate authored fixtures and regenerate versioned SDK matrix specs:
-
-```bash
-npm run validate:fixtures
-```
-
-Run the SDK generator matrix:
-
-```bash
-npm run matrix
-```
-
-Run standalone JSON Schema runtime checks:
-
-```bash
-npm run validate:jsonschema
-```
-
-## Run In CI
-
-The GitHub Actions workflow is `.github/workflows/matrix.yml`.
-
-1. Open the repository's **Actions** tab.
-2. Select **SDK Generator Matrix**.
-3. Choose **Run workflow**.
-4. Leave `tools` and `scenarios` empty for the full matrix, or pass comma-separated IDs such as `orval,openapi-typescript` and `generic-schema-binding,recursive-category-tree`.
-
-CI uploads generated SDK output, generation logs, typecheck logs, and per-cell quality summaries as workflow artifacts.
-
 ## Fixtures
 
 Top-level fixtures feed the SDK generator matrix:
