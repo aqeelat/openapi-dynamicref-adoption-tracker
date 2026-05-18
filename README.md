@@ -10,6 +10,14 @@ OpenAPI 3.1.x allows JSON Schema 2020-12 schema objects, and OpenAPI 3.2 explici
 
 Generator and typecheck failures in this repo are **report-only** because those failures are the compatibility data. Fixture validity and generated spec freshness are the CI gates.
 
+## Adoption Strategy
+
+This project currently tests SDK generators and type emitters, but `$dynamicRef` adoption requires work across the OpenAPI ecosystem: SDK generators, parsers/bundlers, runtime validators, spec producers, and documentation renderers.
+
+SDK generators are the first priority because they are where users see broken output directly. Spec producers such as `@nx/swagger` should start adding `$dynamicRef` emission support, but behind explicit opt-in flags until downstream SDK generator support is reliable.
+
+See [State of the Union](state-of-the-union.md) for the detailed strategy.
+
 ## Quickstart
 
 Install pinned local dependencies:

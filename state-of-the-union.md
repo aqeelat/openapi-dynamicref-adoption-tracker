@@ -50,7 +50,7 @@ JSON Schema runtime validation:
 | Paginated response (inline) | Fails valid user/group pages | Passes valid/invalid user and group pages | Passes valid/invalid user and group pages | AJV PR #2615 fixes this |
 | API envelope | Not yet tested | Not yet tested | Not yet tested | Expected same gap as pagination fixtures |
 | Recursive category tree | Pass | Pass | Not tested | Pass |
-| Nested workspace resources | PASS (valid workspace); FAIL (invalid nested folder — AJV does not enforce constraints through `$dynamicRef` generic template binding, same gap as pagination fixtures) | Fails: "resolves to more than one schema" — AJV limitation when multiple schemas share a `$dynamicAnchor` name in the same document; fixture is semantically correct | Not tested | AJV does not resolve `$dynamicRef` generics pattern; fallback `not: {}` accepts invalid data |
+| Nested workspace resources | Valid workspace passes; invalid nested folder is accepted as a known gap because AJV resolves the generic `$dynamicRef` slot to the `not: {}` fallback | Fails: "resolves to more than one schema" — AJV limitation when same-name `$dynamicAnchor`s appear in the generic binding path; fixture is semantically correct | Not tested | AJV does not resolve the multi-parameter `$dynamicRef` generic template pattern |
 | Non-identifier schema key | Pass | Not tested | Pass | Pass |
 | Spec semantics fixtures | Mixed known gaps | Not tested | Pass where runtime assertions exist | Research tier; see `fixtures/README.md` |
 
@@ -80,9 +80,25 @@ PaginatedUserResponse:
 
 Hyperjump evaluates this as intended: user pages require `User[]`, group pages require `Group[]`, and invalid item shapes fail. AJV PR [#2615](https://github.com/ajv-validator/ajv/pull/2615) also now evaluates this correctly — valid user/group pages pass and invalid item shapes fail. This PR has not yet been merged.
 
-The nested workspace fixture was restructured from sibling `$dynamicAnchor` declarations to a multi-parameter generic template pattern (`FolderTemplate` with `folderType` and `resourceType` slots). AJV now parses and partially validates the fixture but does not correctly enforce constraints through `$dynamicRef` generic template binding — the same gap that affects the pagination fixtures. The previous "ambiguous reference" error for same-name `$dynamicAnchor` declarations no longer applies to this fixture.
+The nested workspace fixture was restructured from sibling `$dynamicAnchor` declarations to a multi-parameter generic template pattern (`FolderTemplate` with `folderType` and `resourceType` slots). AJV now parses and partially validates the fixture but does not correctly enforce constraints through `$dynamicRef` generic template binding — the same gap that affects the pagination fixtures. AJV PR #2615 still exposes a separate same-name `$dynamicAnchor` limitation in this generic binding path; the fixture remains semantically correct.
 
 This means the claim that `$dynamicRef` can model generic wrappers is supported by the OAI discussion and by Hyperjump, but tool support is mixed. Upstream generator issues should include the validator matrix rather than relying on one validator.
+
+## Ecosystem Workstreams
+
+`$dynamicRef` adoption depends on several OpenAPI tool categories, not just SDK generators.
+
+| Category | Role | Examples | Recommended work |
+|---|---|---|---|
+| SDK generators / type emitters | Generate application-facing clients and types | OpenAPI Generator, Orval, openapi-typescript, @hey-api/openapi-ts, Kiota, NSwag | Highest priority: preserve dynamic scope and emit reusable parameterized types where supported |
+| Parsers / resolvers / bundlers | Resolve refs and prepare specs for consumers | Redocly bundle, swagger-cli bundle, parser libraries | Preserve `$dynamicRef` / `$dynamicAnchor` without changing dynamic scope |
+| Runtime validators | Validate data against schemas | AJV, Hyperjump | Close validator gaps and document disagreements |
+| Spec producers | Generate OpenAPI specs from source code | `@nx/swagger`, `@nestjs/swagger`, tsoa, FastAPI, springdoc-openapi, poem-openapi, swaggo/swag | Add opt-in `$dynamicRef` emission while keeping duplicated-schema output as the default |
+| Documentation renderers | Render OpenAPI docs | Swagger UI, Redoc, Stoplight Elements | Render valid specs containing `$dynamicRef` without crashing or hiding schemas |
+
+SDK generators and type emitters are the first practical priority because broken generated types immediately affect application developers. A spec producer that emits `$dynamicRef` before downstream tools preserve the semantics can cause generation failures or degraded output such as `unknown`, `any`, `Object`, or duplicate non-generic wrappers.
+
+Spec producers should still start implementing support now, but they should expose it as an explicit opt-in. Default output should remain compatibility-safe duplicated schemas until major SDK generators and parser/bundler stacks reliably preserve dynamic reference semantics.
 
 ## TypeScript SDK Matrix Snapshot (Initial 3-Generator Run)
 
@@ -136,9 +152,12 @@ Orval PR [#3353](https://github.com/orval-labs/orval/pull/3353) adds opt-in dyna
 ## Recommendation
 
 - Use duplicated concrete wrappers or a hybrid compatibility strategy for production SDK pipelines today.
+- Prioritize SDK generators and type emitters first; they are the practical bottleneck for application adoption.
 - Use validator-backed recursive and complex nested fixtures for upstream `$dynamicRef` parser/codegen work.
 - Use the pagination/generic-wrapper fixture with the documented validator caveat: Hyperjump validates it; AJV currently does not.
 - **Generic fixtures must produce parameterized types (generics) when the target language supports them.** Concrete materialization of generic wrappers — duplicating the template structure for each item type — does not pass validation. The purpose of `$dynamicRef` for generics is type reuse; producing duplicates defeats that purpose. For languages without generics, concrete wrappers are acceptable as a documented fallback.
+- Spec producers such as `@nx/swagger` should add `$dynamicRef` emission behind explicit opt-in flags, not as default output, until downstream SDK generator support is reliable.
+- Track spec producer work separately from SDK generator work; this repo does not need producer CI automation yet.
 - Treat OAS `3.2.0` as experimental for generator compatibility until parser support improves.
 - OpenAPI Generator has the most severe gap: it cannot parse specs containing `$dynamicAnchor` at all. Start upstream work there.
 
