@@ -2,8 +2,10 @@ const scenarios = [
   'baseline-duplicated-pagination',
   'generic-schema-binding',
   'paginated-response',
+  'api-envelope',
   'recursive-category-tree',
   'nested-workspace-resources',
+  'non-identifier-schema-key',
 ];
 
 const versions = ['3.1.0', '3.1.1', '3.1.2', '3.2.0'];

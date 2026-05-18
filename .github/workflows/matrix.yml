@@ -58,8 +58,10 @@ jobs:
           - baseline-duplicated-pagination
           - generic-schema-binding
           - paginated-response
+          - api-envelope
           - recursive-category-tree
           - nested-workspace-resources
+          - non-identifier-schema-key
         version:
           - '3.1.0'
           - '3.1.1'
@@ -118,6 +120,8 @@ jobs:
       - name: Generate SDK
         if: steps.select.outputs.selected == 'true'
         id: generate
+        env:
+          MATRIX_RESULTS_FILE: logs/matrix-results-${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.json
         run: node scripts/matrix-runner.mjs --tools=${{ matrix.tool }} --scenarios=${{ matrix.scenario }} --versions=${{ matrix.version }} --no-typecheck --no-analysis
         continue-on-error: true
 
@@ -155,7 +159,12 @@ jobs:
             echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.typecheck=filtered" >> "$result_file"
             exit 0
           fi
-          gen_outcome="${{ steps.generate.outcome }}"
+          matrix_result="logs/matrix-results-${{ matrix.tool }}-${{ matrix.scenario }}-${{ matrix.version }}.json"
+          if [ -f "$matrix_result" ]; then
+            gen_outcome=$(node -e "const r=require('./${matrix_result}'); console.log(r.results?.[0]?.generate || 'unknown')")
+          else
+            gen_outcome="${{ steps.generate.outcome }}"
+          fi
           tc_outcome="${{ steps.typecheck.outcome }}"
           tc_skip="${{ steps.typecheck.outputs.skip }}"
           echo "${{ matrix.tool }}.${{ matrix.scenario }}.${{ matrix.version }}.generate=${gen_outcome:-skipped}" >> "$result_file"

@@ -26,24 +26,28 @@ const SCENARIOS = [
   'baseline-duplicated-pagination',
   'generic-schema-binding',
   'paginated-response',
+  'api-envelope',
   'recursive-category-tree',
   'nested-workspace-resources',
+  'non-identifier-schema-key',
 ];
 
 const VERSIONS = ['3.1.0', '3.1.1', '3.1.2', '3.2.0'];
 
 const CONCRETE_TYPES = [
   'User', 'Group', 'LocalizedCategory', 'BaseCategory',
-  'BaseFolder', 'WorkspaceFolder', 'Document', 'WorkspaceResource',
-  'BaseResource', 'PaginatedTemplate',
+  'FolderTemplate', 'WorkspaceFolder', 'Document', 'WorkspaceResource',
+  'PaginatedTemplate', 'ApiEnvelopeTemplate', 'PaginatedUserItems',
 ];
 
 const QUALITY_SIGNALS = {
   'baseline-duplicated-pagination': { keyProps: ['items'], expectedTypes: ['User', 'Group'] },
-  'generic-schema-binding': { keyProps: ['items'], expectedTypes: ['User', 'Group'] },
-  'paginated-response': { keyProps: ['items'], expectedTypes: ['User', 'Group'] },
+  'generic-schema-binding': { keyProps: ['items'], expectedTypes: ['User', 'Group'], genericTemplates: ['PaginatedTemplate'] },
+  'paginated-response': { keyProps: ['items'], expectedTypes: ['User', 'Group'], genericTemplates: ['PaginatedTemplate'] },
+  'api-envelope': { keyProps: ['data'], expectedTypes: ['User', 'PaginatedUserItems'], genericTemplates: ['ApiEnvelopeTemplate'] },
   'recursive-category-tree': { keyProps: ['children'], expectedTypes: ['LocalizedCategory', 'BaseCategory'] },
   'nested-workspace-resources': { keyProps: ['children', 'shortcuts'], expectedTypes: ['WorkspaceFolder', 'Document', 'WorkspaceResource'] },
+  'non-identifier-schema-key': { keyProps: ['children'], expectedTypes: ['LocalizedCategory', 'BaseCategory'] },
 };
 
 const TOOLS = [
@@ -175,6 +179,24 @@ function readFileContent(files) {
   return files.map(f => ({ path: f, content: readFileSync(f, 'utf8') }));
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasGenericInstantiations(content, signals) {
+  if (!signals?.genericTemplates) return false;
+
+  return signals.genericTemplates.some(template => {
+    const genericDefinition = new RegExp(`\\b${escapeRegExp(template)}\\s*<[^>]+>`).test(content);
+    if (!genericDefinition) return false;
+
+    return signals.expectedTypes.some(type => {
+      const instantiation = new RegExp(`\\b${escapeRegExp(template)}\\s*<[^>]*\\b${escapeRegExp(type)}\\b[^>]*>`);
+      return instantiation.test(content);
+    });
+  });
+}
+
 function analyzeQuality(outputDir, scenario) {
   const tsFiles = findTsFiles(outputDir);
   if (tsFiles.length === 0) return { fidelity: 'empty', tsFileCount: 0, unknownCount: 0, anyCount: 0, concreteTypes: [] };
@@ -205,10 +227,15 @@ function analyzeQuality(outputDir, scenario) {
     : [];
   const concrete = CONCRETE_TYPES.filter(t => allContent.includes(t));
   const expectedPresent = signals ? signals.expectedTypes.filter(t => concrete.includes(t)) : [];
+  const genericInstantiations = hasGenericInstantiations(allContent, signals);
 
   let fidelity;
-  if (expectedPresent.length > 0 && keyPropUnknowns === 0 && keyPropAnys === 0 && keyPropConcrete.length > 0) {
+  if (genericInstantiations && keyPropUnknowns === 0 && keyPropAnys === 0) {
     fidelity = 'preserved';
+  } else if (expectedPresent.length > 0 && keyPropUnknowns === 0 && keyPropAnys === 0 && keyPropConcrete.length > 0) {
+    fidelity = 'preserved';
+  } else if (genericInstantiations && (keyPropUnknowns > 0 || keyPropAnys > 0)) {
+    fidelity = 'partial';
   } else if (keyPropConcrete.length > 0 && (keyPropUnknowns > 0 || keyPropAnys > 0)) {
     fidelity = 'partial';
   } else if (keyPropUnknowns > 0) {

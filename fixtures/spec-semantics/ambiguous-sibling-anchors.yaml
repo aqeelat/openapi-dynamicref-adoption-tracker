@@ -1,0 +1,48 @@
+openapi: 3.1.0
+info:
+  title: Ambiguous Sibling Dynamic Anchors API
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: https://api.dynamicref.test
+security: []
+paths:
+  /semantics/ambiguous-sibling-anchor:
+    get:
+      summary: Ambiguous sibling dynamic anchor reference
+      operationId: getAmbiguousSiblingAnchor
+      responses:
+        '200':
+          description: Dynamic reference with multiple same-name sibling anchors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AmbiguousContainer'
+components:
+  schemas:
+    AmbiguousContainer:
+      type: object
+      required: [resource]
+      properties:
+        resource:
+          $dynamicRef: '#resource'
+    DocumentResource:
+      $dynamicAnchor: resource
+      type: object
+      required: [kind, title]
+      properties:
+        kind:
+          const: document
+        title:
+          type: string
+    FolderResource:
+      $dynamicAnchor: resource
+      type: object
+      required: [kind, name]
+      properties:
+        kind:
+          const: folder
+        name:
+          type: string

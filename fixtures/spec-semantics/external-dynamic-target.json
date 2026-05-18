@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/hyperjump/spec-semantics/external-dynamic-target.json",
+  "$dynamicAnchor": "externalNode",
+  "type": "object",
+  "required": ["kind", "value"],
+  "properties": {
+    "kind": {
+      "const": "external"
+    },
+    "value": {
+      "type": "string"
+    }
+  }
+}

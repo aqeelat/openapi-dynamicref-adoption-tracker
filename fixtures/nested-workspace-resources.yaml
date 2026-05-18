@@ -35,9 +35,15 @@ components:
           type: string
         title:
           type: string
-    BaseFolder:
-      $id: https://example.com/schemas/BaseFolder
-      $dynamicAnchor: folder
+    FolderTemplate:
+      $id: https://example.com/schemas/FolderTemplate
+      $defs:
+        folderType:
+          $dynamicAnchor: folderType
+          not: {}
+        resourceType:
+          $dynamicAnchor: resourceType
+          not: {}
       type: object
       required: [kind, id, name, children, shortcuts]
       properties:
@@ -52,22 +58,22 @@ components:
           items:
             oneOf:
               - $ref: '#/components/schemas/Document'
-              - $dynamicRef: '#folder'
+              - $dynamicRef: '#folderType'
         shortcuts:
           type: array
           items:
-            $dynamicRef: '#resource'
-    BaseResource:
-      $id: https://example.com/schemas/BaseResource
-      $dynamicAnchor: resource
-      oneOf:
-        - $ref: '#/components/schemas/Document'
-        - $dynamicRef: '#folder'
+            $dynamicRef: '#resourceType'
     WorkspaceFolder:
       $id: https://example.com/schemas/WorkspaceFolder
-      $dynamicAnchor: folder
       allOf:
-        - $ref: '#/components/schemas/BaseFolder'
+        - $defs:
+            folderType:
+              $dynamicAnchor: folderType
+              $ref: '#/components/schemas/WorkspaceFolder'
+            resourceType:
+              $dynamicAnchor: resourceType
+              $ref: '#/components/schemas/WorkspaceResource'
+          $ref: '#/components/schemas/FolderTemplate'
         - type: object
           required: [permissions]
           properties:
@@ -76,8 +82,7 @@ components:
               items:
                 enum: [read, write, admin]
     WorkspaceResource:
-      $id: https://example.com/schemas/WorkspaceResource
-      $dynamicAnchor: resource
+      type: object
       oneOf:
         - $ref: '#/components/schemas/Document'
         - $ref: '#/components/schemas/WorkspaceFolder'

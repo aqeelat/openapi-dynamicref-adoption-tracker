@@ -4,9 +4,9 @@
 
 - This repo investigates OpenAPI `$dynamicRef` / `$dynamicAnchor` behavior across validators and SDK generators.
 - We split the work into two stages: fixture validation first, SDK generator type fidelity second.
-- Two dynamicRef fixtures are currently validator-backed: recursive tree extension and complex nested resource graphs with multiple dynamic anchors.
+- Three dynamicRef SDK fixtures are currently validator-backed: recursive tree extension, non-identifier schema-key recursion, and multi-parameter generic templates for nested resource graphs.
 - The pagination/generic-wrapper fixture follows the JSON Schema generics pattern referenced from OAI #3601. It passes Hyperjump runtime validation, but AJV 2020 still resolves it incorrectly.
-- TypeScript SDK results across all 5 fixtures confirm: no tested tool preserves `$dynamicRef` type fidelity. Generators either fail to parse specs containing `$dynamicAnchor`, or emit `unknown[]`/`any` for dynamic ref slots.
+- The initial SDK snapshot across the original 5 fixtures confirmed: no tested tool preserved `$dynamicRef` type fidelity. Generators either failed to parse specs containing `$dynamicAnchor`, emitted `unknown`/`any`/`Object` for dynamic ref slots, or materialized generic/template fixtures as duplicate concrete types instead of reusable parameterized types.
 - New finding: OpenAPI Generator fails on named wrapper schemas (`PaginatedUserResponse` → `$ref: PaginatedTemplate`) but **succeeds** on inline binding (response-level `$defs` + `$ref: PaginatedTemplate`). This suggests the parser bug is triggered by schemas that contain `$dynamicAnchor` but are only reachable via `$ref` from another named schema.
 
 ## Fixtures
@@ -16,8 +16,14 @@
 | `fixtures/baseline-duplicated-pagination.yaml` | Control case with explicit paginated wrappers | Validated control |
 | `fixtures/generic-schema-binding.yaml` | Generic pagination with named wrapper schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
 | `fixtures/paginated-response.yaml` | Generic pagination with type binding at the route response level (no named wrappers) | OpenAPI-valid; Hyperjump runtime-valid; AJV runtime fails |
+| `fixtures/api-envelope.yaml` | Generic response envelope (`ApiEnvelopeTemplate<T>`) with inline `$defs` binding at the route level; one route binds a single resource, another binds a paginated wrapper | OpenAPI-valid; expected same AJV gap as pagination fixtures; not yet runtime-validated |
 | `fixtures/recursive-category-tree.yaml` | `$dynamicRef` recursive override using `$dynamicAnchor: category` | Validated dynamicRef |
-| `fixtures/nested-workspace-resources.yaml` | Nested structures with multiple dynamic refs (`folder`, `resource`) | Validated dynamicRef |
+| `fixtures/nested-workspace-resources.yaml` | Multi-parameter generic template for nested folder/resource graphs (`folderType`, `resourceType`) | Validated dynamicRef |
+| `fixtures/non-identifier-schema-key.yaml` | Recursive dynamic override with schema keys that require generated identifier normalization | Validated dynamicRef and generator edge fixture |
+| `fixtures/spec-semantics/dynamicref-core-semantics.yaml` | Focused JSON Schema dynamic reference semantics | OpenAPI-valid; Hyperjump runtime-valid for supported cases; AJV has documented gaps |
+| `fixtures/spec-semantics/external-dynamic-ref.yaml` | External JSON Schema resource via `$dynamicRef` | OpenAPI-valid; Hyperjump runtime-valid |
+| `fixtures/spec-semantics/ambiguous-sibling-anchors.yaml` | Multiple sibling schemas with the same `$dynamicAnchor` name | OpenAPI-valid research fixture for static-scan limitations |
+| `petstore-dynamicref-showcase.yaml` | Combined showcase exercising all `$dynamicRef` patterns in a realistic API (generic pagination, response envelopes, nested generics, recursive trees, multi-parameter generic templates, non-identifier keys, typed request/response bodies) | OpenAPI-valid; intended for SDK samples and maintainer demos — not a matrix fixture |
 
 ## Validation Matrix
 
@@ -28,8 +34,12 @@ OpenAPI document validation:
 | Baseline duplicated pagination | Pass | Pass | Pass | Pass |
 | Paginated generic | Pass | Pass | Pass | Pass |
 | Paginated inline binding | Pass | Pass | Pass | Pass |
+| API envelope | Pass | Pass | Pass | Pass |
 | Recursive category tree | Pass | Pass | Pass | Pass |
 | Nested workspace resources | Pass | Pass | Pass | Pass |
+| Non-identifier schema key | Pass | Pass | Pass | Pass |
+| Spec semantics fixtures | Pass | Pass | Pass | Pass |
+| Petstore showcase | Pass | Pass | Pass | Pass |
 
 JSON Schema runtime validation:
 
@@ -38,8 +48,11 @@ JSON Schema runtime validation:
 | Baseline duplicated pagination | Pass | Pass | Not tested | Pass |
 | Generic schema binding | Fails valid user/group pages | Passes valid/invalid user and group pages | Passes valid/invalid user and group pages | AJV PR #2615 fixes this |
 | Paginated response (inline) | Fails valid user/group pages | Passes valid/invalid user and group pages | Passes valid/invalid user and group pages | AJV PR #2615 fixes this |
+| API envelope | Not yet tested | Not yet tested | Not yet tested | Expected same gap as pagination fixtures |
 | Recursive category tree | Pass | Pass | Not tested | Pass |
-| Nested workspace resources | Pass | Fails: "resolves to more than one schema" for multiple same-name `$dynamicAnchor` | Not tested | Separate AJV gap: multiple schemas declaring the same `$dynamicAnchor` name in one document |
+| Nested workspace resources | PASS (valid workspace); FAIL (invalid nested folder — AJV does not enforce constraints through `$dynamicRef` generic template binding, same gap as pagination fixtures) | Fails: "resolves to more than one schema" — AJV limitation when multiple schemas share a `$dynamicAnchor` name in the same document; fixture is semantically correct | Not tested | AJV does not resolve `$dynamicRef` generics pattern; fallback `not: {}` accepts invalid data |
+| Non-identifier schema key | Pass | Not tested | Pass | Pass |
+| Spec semantics fixtures | Mixed known gaps | Not tested | Pass where runtime assertions exist | Research tier; see `fixtures/README.md` |
 
 ## Pagination Generic Finding
 
@@ -67,7 +80,7 @@ PaginatedUserResponse:
 
 Hyperjump evaluates this as intended: user pages require `User[]`, group pages require `Group[]`, and invalid item shapes fail. AJV PR [#2615](https://github.com/ajv-validator/ajv/pull/2615) also now evaluates this correctly — valid user/group pages pass and invalid item shapes fail. This PR has not yet been merged.
 
-The nested workspace fixture exposes a separate AJV gap: multiple schemas declaring the same `$dynamicAnchor` name (e.g., both `BaseFolder` and `WorkspaceFolder` declare `$dynamicAnchor: folder`) in a single document causes an "ambiguous reference" error at compile time.
+The nested workspace fixture was restructured from sibling `$dynamicAnchor` declarations to a multi-parameter generic template pattern (`FolderTemplate` with `folderType` and `resourceType` slots). AJV now parses and partially validates the fixture but does not correctly enforce constraints through `$dynamicRef` generic template binding — the same gap that affects the pagination fixtures. The previous "ambiguous reference" error for same-name `$dynamicAnchor` declarations no longer applies to this fixture.
 
 This means the claim that `$dynamicRef` can model generic wrappers is supported by the OAI discussion and by Hyperjump, but tool support is mixed. Upstream generator issues should include the validator matrix rather than relying on one validator.
 
@@ -112,15 +125,20 @@ Swagger Codegen strict failures are from missing `@types/jest`/`@types/mocha` an
 | generic-schema-binding | `PaginatedTemplate { items: unknown[] }` / `type PaginatedUserResponse = PaginatedTemplate` | Fallback `not: {}` → `unknown[]`; concrete type lost |
 | paginated-response | `PaginatedTemplate { items: unknown[] }` — API returns `PaginatedTemplate` directly | Same: fallback to `unknown[]`, no concrete override |
 | recursive-category-tree | `BaseCategory { children: unknown[] }` / `type LocalizedCategory = BaseCategory & { displayName, locale }` | Recursive override lost → `unknown[]` |
-| nested-workspace | `BaseFolder { children: (Document \| unknown)[] }` / `BaseResource = Document \| unknown` | Partial: `Document` sibling resolved but dynamic slots fallback to `unknown` |
+| nested-workspace | `FolderTemplate { children: (Document \| unknown)[], shortcuts: unknown[] }` / `WorkspaceResource = Document \| unknown` | Partial: `Document` sibling resolved but dynamic slots fallback to `unknown` |
 
-Orval resolves `$dynamicRef` to the fallback `$dynamicAnchor` definition rather than the concrete override. This produces syntactically valid TypeScript but semantically wrong types.
+Orval resolves `$dynamicRef` to the fallback `$dynamicAnchor` definition rather than the concrete override. This produces syntactically valid output but semantically wrong types.
+
+Additionally, even when generators do resolve generic fixtures to concrete item types, the current matrix does not distinguish between **reusable parameterized output** (`PaginatedTemplate<T>`) and **duplicate concrete materialization** (separate `PaginatedUserResponse`/`PaginatedGroupResponse` with identical structure). Going forward, generic fixture validation requires parameterized types when the target language supports generics — concrete materialization is classified as PARTIAL (correct type content, lost type reuse).
+
+Orval PR [#3353](https://github.com/orval-labs/orval/pull/3353) adds opt-in dynamic reference support and covers additional generator-facing cases: self-recursive anchors, generic pagination binding, nested workspace resources, disabled-flag fallback behavior, non-identifier schema-key normalization, and unsupported external `$dynamicRef` fallback. The tracker now models the portable schema cases as fixtures; Orval-specific configuration remains tracked in GitHub issue [#1](https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/issues/1).
 
 ## Recommendation
 
 - Use duplicated concrete wrappers or a hybrid compatibility strategy for production SDK pipelines today.
 - Use validator-backed recursive and complex nested fixtures for upstream `$dynamicRef` parser/codegen work.
 - Use the pagination/generic-wrapper fixture with the documented validator caveat: Hyperjump validates it; AJV currently does not.
+- **Generic fixtures must produce parameterized types (generics) when the target language supports them.** Concrete materialization of generic wrappers — duplicating the template structure for each item type — does not pass validation. The purpose of `$dynamicRef` for generics is type reuse; producing duplicates defeats that purpose. For languages without generics, concrete wrappers are acceptable as a documented fallback.
 - Treat OAS `3.2.0` as experimental for generator compatibility until parser support improves.
 - OpenAPI Generator has the most severe gap: it cannot parse specs containing `$dynamicAnchor` at all. Start upstream work there.
 

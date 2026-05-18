@@ -1,0 +1,134 @@
+openapi: 3.1.0
+info:
+  title: DynamicRef API Envelope API
+  description: >
+    Tests the double-wrapping $dynamicRef pattern: a generic response envelope
+    (ApiEnvelopeTemplate<T>) whose data slot is bound at the route response level
+    using inline $defs + $dynamicAnchor. Both a single-resource and a paginated
+    resource response are included to exercise two distinct bindings against the
+    same template.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: https://api.dynamicref.test
+security: []
+
+paths:
+  /users/{userId}:
+    get:
+      summary: Get a user
+      operationId: getUser
+      tags: [Users]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: A single user wrapped in the response envelope
+          content:
+            application/json:
+              schema:
+                $defs:
+                  dataType:
+                    $dynamicAnchor: dataType
+                    $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/ApiEnvelopeTemplate'
+        '404':
+          description: Not found
+
+  /users:
+    get:
+      summary: List users
+      operationId: listUsers
+      tags: [Users]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated user list wrapped in the response envelope
+          content:
+            application/json:
+              schema:
+                $defs:
+                  dataType:
+                    $dynamicAnchor: dataType
+                    $ref: '#/components/schemas/PaginatedUserItems'
+                $ref: '#/components/schemas/ApiEnvelopeTemplate'
+        '400':
+          description: Bad request
+
+components:
+  schemas:
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+
+    ApiEnvelopeTemplate:
+      $id: https://example.com/schemas/ApiEnvelopeTemplate
+      $defs:
+        dataType:
+          $dynamicAnchor: dataType
+          not: {}
+      type: object
+      required: [data, requestId]
+      properties:
+        data:
+          $dynamicRef: '#dataType'
+        requestId:
+          type: string
+          format: uuid
+
+    PaginatedTemplate:
+      $id: https://example.com/schemas/PaginatedTemplate
+      $defs:
+        itemType:
+          $dynamicAnchor: itemType
+          not: {}
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $dynamicRef: '#itemType'
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+
+    PaginatedUserItems:
+      $defs:
+        itemType:
+          $dynamicAnchor: itemType
+          $ref: '#/components/schemas/User'
+      $ref: '#/components/schemas/PaginatedTemplate'

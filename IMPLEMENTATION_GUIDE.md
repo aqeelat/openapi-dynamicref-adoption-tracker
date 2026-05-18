@@ -49,8 +49,22 @@ When a generator processes `LocalizedCategory`, it should:
 
 ## Expected Correct Output
 
-For recursive tree fixtures, the generated TypeScript should preserve recursive extension:
+Fixtures fall into two categories with distinct validation criteria.
 
+### Recursive / Self-Referential Fixtures
+
+Recursive tree and nested resource fixtures test dynamic scope resolution. The generated output must preserve the active recursive type — not the base type, and not a fallback like `any`, `unknown`, or `object`.
+
+Example — recursive category tree (language-agnostic pseudo-code):
+
+```
+LocalizedCategory extends BaseCategory:
+  displayName: string
+  locale: string
+  children: LocalizedCategory[]    // resolved through dynamic scope, not BaseCategory[]
+```
+
+TypeScript:
 ```typescript
 interface LocalizedCategory extends BaseCategory {
   displayName: string;
@@ -59,22 +73,90 @@ interface LocalizedCategory extends BaseCategory {
 }
 ```
 
-For complex nested fixtures, dynamic refs should preserve concrete nested folder/resource types instead of degrading to `any` or `unknown`.
-
-Two pagination/generic-wrapper fixtures follow the JSON Schema generics pattern and are validated by Hyperjump, but AJV currently disagrees. Use them with that caveat documented.
-
-For a future validated pagination pattern, the desired output would be:
-
-```typescript
-interface PaginatedUserResponse {
-  items: User[];
-  total: number;
-  page: number;
-  pageSize: number;
+Java:
+```java
+class LocalizedCategory extends BaseCategory {
+  String displayName;
+  String locale;
+  List<LocalizedCategory> children;
 }
 ```
 
-**Dynamic refs must resolve to concrete schema types, not generic fallbacks.**
+For complex nested fixtures, dynamic refs should preserve concrete nested folder/resource types instead of degrading to `any`, `unknown`, `Object`, or equivalent.
+
+### Generic / Template Fixtures
+
+Pagination and generic-wrapper fixtures test **type reuse**. The `PaginatedTemplate` schema is a reusable generic container — the whole point of using `$dynamicRef` here is to define the wrapper once and instantiate it with different item types. Generators must emit **parameterized types (generics)** when the target language supports them. Concrete materialization — duplicating the wrapper structure for each item type — loses the reuse and does not pass validation for these fixtures.
+
+Two pagination/generic-wrapper fixtures follow the JSON Schema generics pattern and are validated by Hyperjump, but AJV currently disagrees. Use them with that caveat documented.
+
+Example — generic pagination (language-agnostic pseudo-code):
+
+```
+PaginatedTemplate<T>:
+  items: T[]
+  total: number
+  page: number
+  pageSize: number
+
+PaginatedUserResponse = PaginatedTemplate<User>
+PaginatedGroupResponse = PaginatedTemplate<Group>
+```
+
+TypeScript:
+```typescript
+type PaginatedTemplate<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+type PaginatedUserResponse = PaginatedTemplate<User>;
+type PaginatedGroupResponse = PaginatedTemplate<Group>;
+```
+
+Java:
+```java
+class PaginatedTemplate<T> {
+  List<T> items;
+  int total;
+  int page;
+  int pageSize;
+}
+class PaginatedUserResponse extends PaginatedTemplate<User> {}
+class PaginatedGroupResponse extends PaginatedTemplate<Group> {}
+```
+
+Go (1.18+):
+```go
+type PaginatedTemplate[T any] struct {
+    Items    []T `json:"items"`
+    Total    int `json:"total"`
+    Page     int `json:"page"`
+    PageSize int `json:"pageSize"`
+}
+type PaginatedUserResponse = PaginatedTemplate[User]
+type PaginatedGroupResponse = PaginatedTemplate[Group]
+```
+
+C#:
+```csharp
+class PaginatedTemplate<T> {
+    List<T> Items { get; set; }
+    int Total { get; set; }
+    int Page { get; set; }
+    int PageSize { get; set; }
+}
+class PaginatedUserResponse : PaginatedTemplate<User> {}
+```
+
+**Fallback for languages without generics:** If the target language truly lacks parameterized types, generators may emit concrete materialized wrappers (e.g., separate `PaginatedUserResponse` / `PaginatedGroupResponse` with duplicated structure). This is acceptable only as a language-limitation fallback and should be documented.
+
+**Opt-in concrete output:** Generators may offer a user-facing option to produce concrete types even when the language supports generics. This does not pass the tracker's generic-fixture validation — it is a compatibility mode.
+
+### Summary Rule
+
+> Dynamic refs must preserve the intended type relationship. Recursive patterns must resolve to the correct active type through dynamic scope. Generic/template patterns must remain reusable parameterized types where the language supports them. Unresolved `any`/`unknown` output is a failure. Concrete materialization of generic fixtures when the language supports generics is also a failure — it defeats the type reuse that `$dynamicRef` provides.
 
 ---
 
@@ -132,20 +214,31 @@ Minimal fixtures demonstrating the issue are available at:
 
 - Recursive category tree: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/recursive-category-tree.yaml
 - Nested workspace resources: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/nested-workspace-resources.yaml
+- Non-identifier schema key recursion: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/non-identifier-schema-key.yaml
 - Pagination/generic wrapper (named schemas): https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/generic-schema-binding.yaml
 - Pagination/generic wrapper (inline response binding): https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/paginated-response.yaml
+- API envelope (double-wrapped generic, inline binding): https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/api-envelope.yaml
 
-These fixtures pass Redocly, openapi-spec-validator, Spectral, and swagger-cli. The recursive and nested fixtures pass AJV 2020 runtime validation. Both pagination fixtures follow the OAI-referenced JSON Schema generics pattern and pass Hyperjump runtime validation, while AJV currently disagrees.
+A combined showcase fixture that exercises all patterns together in a realistic API is also available: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/petstore-dynamicref-showcase.yaml
+
+These fixtures pass Redocly, openapi-spec-validator, Spectral, and swagger-cli. The recursive, non-identifier schema-key, and nested fixtures pass AJV 2020 runtime validation. Both pagination fixtures follow the OAI-referenced JSON Schema generics pattern and pass Hyperjump runtime validation, while AJV currently disagrees.
 
 ## Expected behavior
 
-- Recursive children should preserve the concrete extended node type (for example `LocalizedCategory.children: LocalizedCategory[]`)
-- Nested dynamic refs should preserve concrete folder/resource types instead of falling back to `any` / `unknown`
-- Pagination wrappers should preserve concrete item types (for example `PaginatedUserResponse.items: User[]`)
+Recursive and nested fixtures (validator-backed):
+
+- Recursive children must resolve to the active extended type through dynamic scope (e.g., `LocalizedCategory.children` must be `LocalizedCategory[]`, not `BaseCategory[]` or `unknown[]`)
+- Nested dynamic refs must preserve concrete folder/resource types instead of falling back to `any`, `unknown`, `Object`, or equivalent
+
+Generic/template fixtures (mixed validator support — Hyperjump passes, AJV currently disagrees):
+
+- Pagination wrappers must be emitted as **reusable parameterized types** when the target language supports generics (e.g., `PaginatedTemplate<T>` with `PaginatedUserResponse = PaginatedTemplate<User>`)
+- Concrete materialization — duplicating the wrapper structure for each item type — does not pass validation. The point of using `$dynamicRef` for generics is type reuse; producing duplicates defeats that purpose
+- For target languages that truly lack generics, concrete wrappers are acceptable as a documented language-limitation fallback
 
 ## Actual behavior
 
-Dynamic refs are typed as `unknown`, `any`, a base schema only, or generation fails entirely.
+Dynamic refs are typed as `unknown`, `any`, `Object`, a base schema only, or generation fails entirely. Where generation succeeds, generic/template fixtures are materialized as duplicate concrete types instead of reusable parameterized types.
 
 ## Why this matters
 
@@ -172,8 +265,11 @@ I've been investigating `$dynamicRef` compatibility across SDK generators and pu
 
 - Recursive fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/recursive-category-tree.yaml
 - Complex nested fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/nested-workspace-resources.yaml
+- Non-identifier schema key fixture: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/non-identifier-schema-key.yaml
 - Pagination/generic fixture (named schemas): https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/generic-schema-binding.yaml
 - Pagination/generic fixture (inline response binding): https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/paginated-response.yaml
+- API envelope fixture (double-wrapped generic): https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/fixtures/api-envelope.yaml
+- Combined showcase (all patterns in a realistic API): https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/petstore-dynamicref-showcase.yaml
 - Compatibility tracker: https://github.com/aqeelat/openapi-dynamicref-adoption-tracker
 
 Happy to help with a PR if there's interest in fixing this.
@@ -233,20 +329,26 @@ Before implementing the fix, add a test that proves the bug:
 ```bash
 cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/recursive-category-tree.yaml ./test/fixtures/recursive-category-tree.yaml
 cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/nested-workspace-resources.yaml ./test/fixtures/nested-workspace-resources.yaml
+cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/non-identifier-schema-key.yaml ./test/fixtures/non-identifier-schema-key.yaml
 cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/generic-schema-binding.yaml ./test/fixtures/generic-schema-binding.yaml
 cp ~/lab/openapi-dynamicref-adoption-tracker/fixtures/paginated-response.yaml ./test/fixtures/paginated-response.yaml
 ```
 
-2. Write a test that generates code from this spec and asserts correct types:
+2. Write a test that generates code from each spec and asserts correct types:
 
 ```typescript
-// Pseudocode — adapt to the generator's test framework
-const spec = loadSpec('test/fixtures/recursive-category-tree.yaml');
-const output = generate(spec);
+// Pseudocode — adapt to the generator's language and test framework
 
-expect(output).toContain('children: LocalizedCategory[]');
-expect(output).not.toContain('items: unknown[]');
-expect(output).not.toContain('items: any');
+// Recursive fixture: dynamic scope must resolve to the active recursive type
+const recursive = generate(loadSpec('test/fixtures/recursive-category-tree.yaml'));
+expect(recursive).toContain('LocalizedCategory'); // children typed as LocalizedCategory, not BaseCategory or unknown
+
+// Generic fixture: must produce parameterized types, not duplicate concrete wrappers
+const generic = generate(loadSpec('test/fixtures/generic-schema-binding.yaml'));
+expect(generic).toContain('PaginatedTemplate'); // reusable generic, not duplicated structure
+expect(generic).not.toContain('unknown');
+expect(generic).not.toContain('any');
+expect(generic).not.toContain('Object'); // or equivalent top-type in the target language
 ```
 
 3. Run the test — it should **fail**. This confirms you've correctly reproduced the issue.
@@ -277,8 +379,9 @@ Key considerations:
 
 - **Dynamic scope, not static scope.** `$dynamicRef` is resolved along the runtime evaluation path (the dynamic scope), which tracks which schema resources are active when the ref is encountered. This is fundamentally different from `$ref` which is a static link. If the generator only has a static reference graph, it will need to simulate the dynamic scope by tracking schema evaluation order.
 - **Composition matters.** Validated recursive fixtures use composed schemas with a `$dynamicAnchor` at the composed schema root. The pagination fixture uses the JSON Schema generics pattern: a fallback dynamic anchor in the template and concrete dynamic anchors in each response schema's `$defs`.
+- **Generics must remain generic.** When the generator encounters the generics pattern (a template schema with `$dynamicRef` slots and concrete instantiations that bind them), it must emit a parameterized type in the output language — not duplicate the template structure as concrete types. The entire purpose of using `$dynamicRef` for generics is type reuse. See the "Expected Correct Output" section for language-specific examples.
 - **Don't break existing $ref handling.** `$dynamicRef` is a separate keyword — make sure normal `$ref` resolution is untouched.
-- **Don't silently degrade to `any`.** If a dynamic ref cannot be resolved, emit a clear diagnostic (warning or error) rather than falling back to `any` / `unknown`. Silent degradation is exactly the problem this repo is trying to eliminate.
+- **Don't silently degrade to `any`.** If a dynamic ref cannot be resolved, emit a clear diagnostic (warning or error) rather than falling back to `any` / `unknown` / `Object`. Silent degradation is exactly the problem this repo is trying to eliminate.
 
 ---
 
@@ -296,23 +399,18 @@ TRACKER=~/lab/openapi-dynamicref-adoption-tracker
 # Adapt these commands to the generator's CLI
 <generator-binary> --input $TRACKER/fixtures/recursive-category-tree.yaml --output /tmp/dynamicref-test/recursive-category-tree
 <generator-binary> --input $TRACKER/fixtures/nested-workspace-resources.yaml --output /tmp/dynamicref-test/nested-workspace-resources
+<generator-binary> --input $TRACKER/fixtures/non-identifier-schema-key.yaml --output /tmp/dynamicref-test/non-identifier-schema-key
 <generator-binary> --input $TRACKER/fixtures/generic-schema-binding.yaml --output /tmp/dynamicref-test/generic-schema-binding
 <generator-binary> --input $TRACKER/fixtures/paginated-response.yaml --output /tmp/dynamicref-test/paginated-response
 ```
 
-4. **Typecheck each generated output:**
-
-```bash
-for fixture in recursive-category-tree nested-workspace-resources generic-schema-binding paginated-response; do
-  echo "=== $fixture ==="
-  cd /tmp/dynamicref-test/$fixture && tsc --noEmit --strict
-done
-```
+4. **Verify the generated output compiles/typechecks.** Adapt to the target language's type checker (e.g., `tsc --noEmit --strict` for TypeScript, `javac` for Java, `go build` for Go, `dotnet build` for C#).
 
 5. **Inspect the types.** Verify:
-   - Recursive children preserve the concrete extended node type
+   - Recursive children preserve the active extended node type through dynamic scope
    - Nested dynamic refs preserve concrete folder/resource types
-   - No `any`, `unknown`, or generic fallbacks
+   - Generic fixtures produce reusable parameterized types (not duplicate concrete wrappers)
+   - No `any`, `unknown`, `Object`, or equivalent top-type fallbacks
 
 ---
 
@@ -354,30 +452,45 @@ Fixes #<issue-number>
 
 ## Problem
 
-Dynamic references were either ignored or resolved at definition time, producing `unknown[]`, `any`, or base-only types for recursive/nested schemas that should preserve the active dynamic scope.
+Dynamic references were either ignored or resolved at definition time, producing `unknown`, `any`, or base-only types for recursive/nested schemas. Generic/template fixtures were materialized as duplicate concrete types instead of reusable parameterized types.
 
 ## Solution
 
 - Added `$dynamicRef` detection in the schema reference resolver
 - Implemented dynamic-scope-aware resolution to find the active `$dynamicAnchor` target
+- Recursive fixtures: resolved dynamic refs preserve the active recursive type
+- Generic fixtures: resolved dynamic refs produce parameterized types (generics) when the target language supports them
 - Added test coverage using recursive, nested, and pagination-generic dynamicRef fixtures
 
 ## Testing
 
-- New test: generates code from `$dynamicRef` fixtures and asserts correct recursive/nested types
+- New tests: generates code from `$dynamicRef` fixtures and asserts correct type resolution
+- Recursive fixtures: dynamic scope resolves to the active extended type
+- Generic fixtures: output uses reusable parameterized types, not duplicate concrete wrappers
 - Existing test suite: all passing, no regressions
 - Verified against fixtures from https://github.com/aqeelat/openapi-dynamicref-adoption-tracker
 
 ## Before
 
-```typescript
+```
+// Recursive fixture
 children: unknown[];
+
+// Generic fixture — duplicated concrete wrappers
+PaginatedUserResponse { items: User[]; total: number; ... }
+PaginatedGroupResponse { items: Group[]; total: number; ... }
 ```
 
 ## After
 
-```typescript
+```
+// Recursive fixture
 children: LocalizedCategory[];
+
+// Generic fixture — reusable parameterized type
+PaginatedTemplate<T> { items: T[]; total: number; ... }
+PaginatedUserResponse = PaginatedTemplate<User>
+PaginatedGroupResponse = PaginatedTemplate<Group>
 ```
 
 ---
@@ -409,7 +522,8 @@ After opening an issue or PR, help it gain traction with the maintainers. Most o
 
 - **Lead with impact.** Explain why this matters in practice (pagination wrappers, generic response types, reducing schema duplication). Don't assume they care about spec compliance for its own sake.
 - **Provide a minimal repro.** The spec in this repo is intentionally small — link directly to it. Don't make them find or build a test case.
-- **Show the before/after.** Concrete type output (`unknown[]` vs `LocalizedCategory[]`) is more convincing than abstract descriptions.
+- **Show the before/after.** Before/after type output (e.g., `unknown[]` vs `LocalizedCategory[]` for recursive fixtures, or duplicated concrete wrappers vs `PaginatedTemplate<T>` for generic fixtures) is more convincing than abstract descriptions.
+- **Include the combined showcase.** The [petstore-dynamicref-showcase.yaml](https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/blob/main/petstore-dynamicref-showcase.yaml) fixture demonstrates all patterns together in a realistic API and is useful for maintainers who want to see what correct SDK output should look like across the full range of `$dynamicRef` uses.
 
 ### Write reviewable PRs
 

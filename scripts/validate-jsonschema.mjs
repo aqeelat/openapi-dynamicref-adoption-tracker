@@ -113,6 +113,30 @@ async function validateInlineWithHyperjump(fixtureName, operationPath, responseC
   return output.valid;
 }
 
+let externalDynamicRefLoaded = false;
+
+async function validateExternalDynamicRefWithHyperjump(data) {
+  const fixtureName = 'spec-semantics/external-dynamic-ref.yaml';
+  const fixture = loadFixture(fixtureName);
+  const sourceDocumentId = 'https://example.com/hyperjump/spec-semantics/external-dynamic-ref.yaml';
+  const targetDocumentId = 'https://example.com/hyperjump/spec-semantics/external-dynamic-target.json';
+
+  if (!externalDynamicRefLoaded) {
+    await addHyperjumpSchema(JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'fixtures/spec-semantics/external-dynamic-target.json'), 'utf8'),
+    ));
+    await addHyperjumpSchema({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: sourceDocumentId,
+      $defs: rewriteOpenApiRefs(fixture.components.schemas, sourceDocumentId),
+    });
+    externalDynamicRefLoaded = true;
+  }
+
+  const output = await validateHyperjumpSchema(`${sourceDocumentId}#/$defs/ExternalDynamicContainer`, data, 'BASIC');
+  return output.valid;
+}
+
 const cases = [
   {
     name: 'baseline duplicated pagination: valid user page',
@@ -143,6 +167,20 @@ const cases = [
     expected: false,
   },
   {
+    name: 'non-identifier schema key: valid localized category',
+    fixture: 'non-identifier-schema-key.yaml',
+    schema: 'localized-category',
+    data: { id: 'root', displayName: 'Root', locale: 'en-US', children: [{ id: 'child', displayName: 'Child', locale: 'en-US', children: [] }] },
+    expected: true,
+  },
+  {
+    name: 'non-identifier schema key: invalid child missing localized fields',
+    fixture: 'non-identifier-schema-key.yaml',
+    schema: 'localized-category',
+    data: { id: 'root', displayName: 'Root', locale: 'en-US', children: [{ id: 'child', children: [] }] },
+    expected: false,
+  },
+  {
     name: 'nested workspace resources: valid workspace',
     fixture: 'nested-workspace-resources.yaml',
     schema: 'WorkspaceResponse',
@@ -163,7 +201,7 @@ const cases = [
     expected: true,
   },
   {
-    name: 'nested workspace resources: invalid folder missing permissions',
+    name: 'nested workspace resources: invalid folder missing permissions (AJV resolves $dynamicRef to not: {} fallback, accepts invalid data)',
     fixture: 'nested-workspace-resources.yaml',
     schema: 'WorkspaceResponse',
     data: {
@@ -178,6 +216,7 @@ const cases = [
       related: [],
     },
     expected: false,
+    knownGap: true,
   },
   {
     name: 'paginated generic: valid group page (AJV currently fails this pattern)',
@@ -322,9 +361,57 @@ const inlineCases = [
     data: { items: [{ id: 'g1' }], total: 1, page: 1, pageSize: 10 },
     expected: false,
   },
+  {
+    name: 'api envelope: valid single user response (AJV currently fails this pattern)',
+    fixture: 'api-envelope.yaml',
+    operationPath: '/users/{userId}',
+    responseCode: '200',
+    data: { data: { id: 'u1', email: 'user@example.com' }, requestId: '550e8400-e29b-41d4-a716-446655440000' },
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'api envelope: invalid user in envelope',
+    fixture: 'api-envelope.yaml',
+    operationPath: '/users/{userId}',
+    responseCode: '200',
+    data: { data: { id: 'u1', name: 'Not a user' }, requestId: '550e8400-e29b-41d4-a716-446655440000' },
+    expected: false,
+  },
+  {
+    name: 'api envelope: valid paginated user list response (AJV currently fails this pattern)',
+    fixture: 'api-envelope.yaml',
+    operationPath: '/users',
+    responseCode: '200',
+    data: { data: { items: [{ id: 'u1', email: 'user@example.com' }], total: 1, page: 1, pageSize: 20 }, requestId: '550e8400-e29b-41d4-a716-446655440000' },
+    expected: false,
+    knownGap: true,
+  },
+  {
+    name: 'api envelope: invalid user in paginated envelope',
+    fixture: 'api-envelope.yaml',
+    operationPath: '/users',
+    responseCode: '200',
+    data: { data: { items: [{ id: 'u1', name: 'Not a user' }], total: 1, page: 1, pageSize: 20 }, requestId: '550e8400-e29b-41d4-a716-446655440000' },
+    expected: false,
+  },
 ];
 
 const hyperjumpCases = [
+  {
+    name: 'hyperjump non-identifier schema key: valid localized category',
+    fixture: 'non-identifier-schema-key.yaml',
+    schema: 'localized-category',
+    data: { id: 'root', displayName: 'Root', locale: 'en-US', children: [{ id: 'child', displayName: 'Child', locale: 'en-US', children: [] }] },
+    expected: true,
+  },
+  {
+    name: 'hyperjump non-identifier schema key: invalid child missing localized fields',
+    fixture: 'non-identifier-schema-key.yaml',
+    schema: 'localized-category',
+    data: { id: 'root', displayName: 'Root', locale: 'en-US', children: [{ id: 'child', children: [] }] },
+    expected: false,
+  },
   {
     name: 'hyperjump generic schema binding: valid group page',
     fixture: 'generic-schema-binding.yaml',
@@ -470,6 +557,19 @@ const hyperjumpSemanticsCases = [
   },
 ];
 
+const hyperjumpExternalCases = [
+  {
+    name: 'hyperjump external dynamicRef: valid external node',
+    data: { item: { kind: 'external', value: 'ok' } },
+    expected: true,
+  },
+  {
+    name: 'hyperjump external dynamicRef: invalid external node',
+    data: { item: { kind: 'external' } },
+    expected: false,
+  },
+];
+
 let failed = false;
 
 console.log('=== AJV 2020 ===');
@@ -496,11 +596,11 @@ for (const testCase of cases) {
     continue;
   }
 
-  const label = pass && testCase.knownGap ? 'KNOWN-GAP' : pass ? 'PASS' : 'FAIL';
+  const label = pass && testCase.knownGap ? 'FIXED' : !pass && testCase.knownGap ? 'KNOWN-GAP' : pass ? 'PASS' : 'FAIL';
   console.log(`${label} ${testCase.name}`);
   console.log(`  expected=${testCase.expected} actual=${actual}`);
 
-  if (!pass) {
+  if (!pass && !testCase.knownGap) {
     failed = true;
     console.log(`  errors=${JSON.stringify(validate?.errors, null, 2)}`);
   }
@@ -511,11 +611,11 @@ for (const testCase of inlineCases) {
   const actual = validate(testCase.data);
   const pass = actual === testCase.expected;
 
-  const label = pass && testCase.knownGap ? 'KNOWN-GAP' : pass ? 'PASS' : 'FAIL';
+  const label = pass && testCase.knownGap ? 'FIXED' : !pass && testCase.knownGap ? 'KNOWN-GAP' : pass ? 'PASS' : 'FAIL';
   console.log(`${label} ${testCase.name}`);
   console.log(`  expected=${testCase.expected} actual=${actual}`);
 
-  if (!pass) {
+  if (!pass && !testCase.knownGap) {
     failed = true;
     console.log(`  errors=${JSON.stringify(validate.errors, null, 2)}`);
   }
@@ -548,6 +648,18 @@ for (const testCase of hyperjumpInlineCases) {
 
 for (const testCase of hyperjumpSemanticsCases) {
   const actual = await validateWithHyperjump(testCase.fixture, testCase.schema, testCase.data);
+  const pass = actual === testCase.expected;
+
+  console.log(`${pass ? 'PASS' : 'FAIL'} ${testCase.name}`);
+  console.log(`  expected=${testCase.expected} actual=${actual}`);
+
+  if (!pass) {
+    failed = true;
+  }
+}
+
+for (const testCase of hyperjumpExternalCases) {
+  const actual = await validateExternalDynamicRefWithHyperjump(testCase.data);
   const pass = actual === testCase.expected;
 
   console.log(`${pass ? 'PASS' : 'FAIL'} ${testCase.name}`);

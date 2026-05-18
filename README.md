@@ -6,7 +6,7 @@ This repository is a public compatibility lab for OpenAPI `$dynamicRef` / `$dyna
 
 ## Current Headline
 
-OpenAPI 3.1.x allows JSON Schema 2020-12 schema objects, and OpenAPI 3.2 explicitly recommends dynamic references for generic/template data structures. In the current matrix, tools still either fail to parse `$dynamicAnchor`, generate syntactically valid but semantically degraded TypeScript, or lose concrete dynamic types such as `User[]`, `LocalizedCategory[]`, or `WorkspaceFolder[]`.
+OpenAPI 3.1.x allows JSON Schema 2020-12 schema objects, and OpenAPI 3.2 explicitly recommends dynamic references for generic/template data structures. In the current matrix, tools still either fail to parse `$dynamicAnchor`, generate syntactically valid but semantically degraded output (e.g., `unknown`, `any`, or `Object`), lose dynamic scope resolution for recursive types, or materialize generic/template patterns as duplicate concrete types instead of reusable parameterized types.
 
 Generator and typecheck failures in this repo are **report-only** because those failures are the compatibility data. Fixture validity and generated spec freshness are the CI gates.
 
@@ -56,8 +56,12 @@ Top-level fixtures feed the SDK generator matrix:
 | `baseline-duplicated-pagination.yaml` | Control case with duplicated concrete paginated wrappers |
 | `generic-schema-binding.yaml` | Generic pagination with named concrete schemas |
 | `paginated-response.yaml` | Generic pagination with inline response-level binding |
+| `api-envelope.yaml` | Generic response envelope with inline route-level binding |
 | `recursive-category-tree.yaml` | Recursive dynamic override using `$dynamicAnchor: category` |
-| `nested-workspace-resources.yaml` | Nested resource graph with multiple dynamic anchors |
+| `nested-workspace-resources.yaml` | Multi-parameter generic template for nested folder/resource graphs |
+| `non-identifier-schema-key.yaml` | Recursive dynamic override with schema keys that need generated identifier normalization |
+
+A combined showcase fixture, [`petstore-dynamicref-showcase.yaml`](petstore-dynamicref-showcase.yaml), exercises all `$dynamicRef` patterns together (generic pagination, response envelopes, nested generics, recursive trees, multi-parameter generic templates, non-identifier keys, typed request/response bodies) and is intended for SDK samples and maintainer demos.
 
 Focused semantics fixtures live under `fixtures/spec-semantics/`. They cover JSON Schema behaviors that are important for parser/validator correctness but are intentionally kept out of the SDK matrix.
 

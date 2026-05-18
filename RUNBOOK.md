@@ -41,7 +41,7 @@ CI also checks `git diff --exit-code -- specs/` after Stage 1. Fixture validity 
 npm run matrix
 ```
 
-Runs all 9 generators × 5 scenarios × 4 OAS versions in parallel (default: 8 workers). Generators that aren't installed are skipped with a clear message.
+Runs all 9 generators × 7 scenarios × 4 OAS versions in parallel (default: 8 workers). Generators that aren't installed are skipped with a clear message.
 
 ### Generators in the Matrix
 
@@ -116,10 +116,13 @@ scenarios=generic-schema-binding,recursive-category-tree
 ```bash
 grep -n "items\|children" generated/orval/generic-schema-binding/3.1.2/model/paginatedTemplate.ts
 grep -n "items\|children" generated/orval/recursive-category-tree/3.1.2/model/baseCategory.ts
-grep -n "items\|children" generated/orval/nested-workspace-resources/3.1.2/model/baseFolder.ts
+grep -n "children\|shortcuts" generated/orval/nested-workspace-resources/3.1.2/model/folderTemplate.ts
+grep -n "data" generated/orval/api-envelope/3.1.2/model/apiEnvelopeTemplate.ts
 ```
 
-For dynamicRef fixtures, the desired result is concrete types (e.g., `items: User[]`, `children: Category[]`). Current generator output degrades to `unknown[]`, `Array<any>`, or `any`.
+For dynamicRef fixtures, the desired result depends on fixture category:
+- **Recursive/nested fixtures:** dynamic refs must resolve to the correct active type through dynamic scope (e.g., `children: LocalizedCategory[]`, not `children: unknown[]`).
+- **Generic/template fixtures:** generators must emit reusable parameterized types when the target language supports generics (e.g., `PaginatedTemplate<T>` with `PaginatedUserResponse = PaginatedTemplate<User>`). Concrete duplicate wrappers do not pass validation for these fixtures — the point of `$dynamicRef` for generics is type reuse. Current generator output degrades to `unknown[]`, `Array<any>`, `any`, or materializes duplicates instead of parameterized types.
 
 ## Optional: JSON Schema Runtime Validation
 

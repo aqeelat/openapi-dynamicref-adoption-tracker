@@ -1,0 +1,30 @@
+openapi: 3.1.0
+info:
+  title: External DynamicRef Semantics API
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: https://api.dynamicref.test
+security: []
+paths:
+  /semantics/external-dynamic-ref:
+    get:
+      summary: External document dynamic reference
+      operationId: getExternalDynamicRef
+      responses:
+        '200':
+          description: Object containing an externally resolved dynamic reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalDynamicContainer'
+components:
+  schemas:
+    ExternalDynamicContainer:
+      type: object
+      required: [item]
+      properties:
+        item:
+          $dynamicRef: external-dynamic-target.json#externalNode
