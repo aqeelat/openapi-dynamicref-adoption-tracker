@@ -27,7 +27,7 @@ These libraries parse OpenAPI specs, resolve `$ref` pointers, and/or bundle mult
 | **swagger-parser** (Java, Swagger API) | https://github.com/swagger-api/swagger-parser | Apache-2.0 (OSS) | Unknown | Java parser for Swagger 2.0 / OpenAPI 3.0. OAS 3.1 support is limited. `$dynamicRef` is a JSON Schema 2020-12 feature — unlikely to be handled. |
 | **swagger-inflector** (Java) | https://github.com/swagger-api/swagger-inflector | Apache-2.0 (OSS) | Unknown | Uses swagger-parser internally. OAS 3.x support via v2 branch. |
 | **kiota** (Microsoft) | https://github.com/microsoft/kiota | MIT (OSS) | Unknown | API client generator that parses OpenAPI specs. Internal parser would need to handle or pass through `$dynamicRef` for downstream use. |
-| **libopenapi** (Go) | https://github.com/pb33f/libopenapi | MIT (OSS) | Unknown | Go library for parsing/rendering OpenAPI 3.x. Powers vacuum. Would need to preserve `$dynamicRef`/`$dynamicAnchor` during resolution. |
+| **libopenapi** (Go) | https://github.com/pb33f/libopenapi | MIT (OSS) | **Correct** | `$dynamicRef`/`$dynamicAnchor` added in v0.30.1 (PR #487, Dec 2025). Both keywords are parsed into low-level and high-level schema models, bundler preserves them, diff/breaking-change detection marks their modification as breaking. Full test coverage. Used by vacuum, wiretap, and others. |
 | **apidevtools/json-schema-ref-parser** | https://github.com/APIDevTools/json-schema-ref-parser | MIT (OSS) | No support | Generic JSON Schema `$ref` resolver. Dereferences/bundles all refs — would destroy `$dynamicRef` semantics if applied to specs containing them. |
 
 ---
@@ -100,8 +100,8 @@ SDK generator results are tracked in [state-of-the-union.md](state-of-the-union.
 | **openapi-fetch** | https://github.com/openapi-ts/openapi-typescript/tree/main/packages/openapi-fetch | MIT (OSS) | Unknown | Lightweight TS client companion to openapi-typescript. |
 | **QuickType** | https://github.com/glideapps/quicktype | Apache-2.0 (OSS) | Unknown | JSON Schema → types in 15+ languages. |
 | **swift-openapi-generator** | https://github.com/apple/swift-openapi-generator | Apache-2.0 (OSS) | Unknown | Apple's official Swift generator. |
-| **oapi-codegen** | https://github.com/oapi-codegen/oapi-codegen | Apache-2.0 (OSS) | Unknown | OpenAPI 3.0 → Go server/client (chi, echo, gin). |
-| **ogen** | https://github.com/ogen-go/ogen | Apache-2.0 (OSS) | Unknown | OpenAPI 3.x → Go with strict typing. |
+| **oapi-codegen** | https://github.com/oapi-codegen/oapi-codegen | Apache-2.0 (OSS) | No support | OpenAPI 3.0 → Go server/client (chi, echo, gin). OAS 3.1 in progress (PR #2336, v2.8.0 milestone). No `$dynamicRef` support; gated on 3.1 baseline. Active maintainer (`jamietanna`); medium landing likelihood after #2336 lands. |
+| **ogen** | https://github.com/ogen-go/ogen | Apache-2.0 (OSS) | No support | OpenAPI 3.x → Go with strict typing. OAS 3.1 partial (nullable arrays still open, PR #1619). No `$dynamicRef` issues filed. Low-to-medium landing likelihood; blocked on 3.1 baseline. |
 | **apimatic** | https://apimatic.io/ | Proprietary | Unknown | 12+ language SDK generation. |
 | **Konfig** | https://github.com/konfig-dev/konfig | MIT (OSS) | Unknown | Sunset Dec 2024. Was TS, Python, Java, Go, Ruby, PHP, C#. |
 | **sdkgen** | https://github.com/sdkgen/sdkgen | MIT (OSS) | Unknown | Typed SDK generation. |
@@ -117,17 +117,17 @@ Tools that generate OpenAPI specs from source code. These should add `$dynamicRe
 
 | Tool | URL | License | Language/Platform | `$dynamicRef` Status | Notes |
 |---|---|---|---|---|---|
-| **springdoc-openapi** | https://github.com/springdoc/springdoc-openapi | Apache-2.0 (OSS) | Java/Spring | Unknown | Dominant in Java/Spring ecosystem. |
-| **@nestjs/swagger** | https://github.com/nestjs/swagger | MIT (OSS) | TypeScript/NestJS | Unknown | Dominant in Node.js/NestJS. |
-| **FastAPI** | https://github.com/tiangolo/fastapi | MIT (OSS) | Python | Unknown | Dominant in Python. Uses Pydantic for schemas. |
-| **swaggo/swag** | https://github.com/swaggo/swag | MIT (OSS) | Go | Unknown | Dominant in Go. Doc comments → Swagger 2.0. |
-| **poem-openapi** | https://github.com/poem-web/poem | MIT/Apache-2.0 (OSS) | Rust | Unknown | poem framework derive macros → OpenAPI 3.0. |
-| **utoipa** | https://github.com/juhaku/utoipa | MIT/Apache-2.0 (OSS) | Rust | Unknown | Framework-agnostic derive macros → OpenAPI 3.0/3.1. Supports actix, axum, etc. |
+| **springdoc-openapi** | https://github.com/springdoc/springdoc-openapi | Apache-2.0 (OSS) | Java/Spring | No support | Dominant in Java/Spring ecosystem. Delegates schema modeling to `swagger-core-jakarta` which has no `$dynamicRef`/`$dynamicAnchor` fields. Upstream-blocked; fix requires swagger-core first. |
+| **@nestjs/swagger** | https://github.com/nestjs/swagger | MIT (OSS) | TypeScript/NestJS | No support | Dominant in Node.js/NestJS. OAS 3.0 target. Static generic resolution. `$dynamicRef` not emitted; architecturally incompatible near-term. |
+| **FastAPI** | https://github.com/tiangolo/fastapi | MIT (OSS) | Python | No support | Dominant in Python. Uses Pydantic for schemas. Emits OAS 3.1 but Pydantic resolves generics statically; no `$dynamicRef` emitted. |
+| **swaggo/swag** | https://github.com/swaggo/swag | MIT (OSS) | Go | No support | Dominant in Go. Doc comments → Swagger 2.0 only. |
+| **poem-openapi** | https://github.com/poem-web/poem | MIT/Apache-2.0 (OSS) | Rust | No support | poem framework derive macros → OpenAPI 3.0 hardcoded in source (`openapi: "3.0.0"`). No `$dynamicRef` support; no OAS 3.1. |
+| **utoipa** | https://github.com/juhaku/utoipa | MIT/Apache-2.0 (OSS) | Rust | No support | Framework-agnostic derive macros → OpenAPI 3.0/3.1 (incomplete). OAS 3.1 not yet complete (PR #1555 open May 2026). Macro-based approach collapses generics statically; no architectural path to `$dynamicRef`. Maintenance pace concerns (issue #1498). |
 | **Swashbuckle.AspNetCore** | https://github.com/domaindrivendev/Swashbuckle.AspNetCore | MIT (OSS) | C#/.NET | Unknown | Dominant in ASP.NET Core. |
-| **drf-spectacular** | https://github.com/tfranzel/drf-spectacular | BSD-3 (OSS) | Python/Django | Unknown | Dominant in Django ecosystem. |
-| **tsoa** | https://github.com/lukeautry/tsoa | MIT (OSS) | TypeScript | Unknown | Decorators + type inference → OpenAPI 2.0/3.0. |
-| **Huma** | https://github.com/danielgtaylor/huma | MIT (OSS) | Go | Unknown | Generates OpenAPI 3.1. Highest OAS version support among Go producers. |
-| **Litestar** | https://github.com/litstar-org/litstar | MIT (OSS) | Python | Unknown | ASGI framework. Auto-generates OpenAPI 3.1. |
+| **drf-spectacular** | https://github.com/tfranzel/drf-spectacular | BSD-3 (OSS) | Python/Django | No support | Dominant in Django ecosystem. Targets OAS 3.0; OAS 3.1 incremental. Serializer-centric; no JSON Schema AST; no `$dynamicRef` demand. |
+| **tsoa** | https://github.com/lukeautry/tsoa | MIT (OSS) | TypeScript | No support | Decorators + type inference → OpenAPI 3.0. Static generic resolution. No OAS 3.1 target; `$dynamicRef` architecturally incompatible near-term. |
+| **Huma** | https://github.com/danielgtaylor/huma | MIT (OSS) | Go | No support | Generates OpenAPI 3.1. Reflects concrete Go types; no `DynamicRef`/`DynamicAnchor` fields in Schema struct. Go generics collapsed at instantiation time. No issues filed. |
+| **Litestar** | https://github.com/litestar-org/litestar | MIT (OSS) | Python | No support | ASGI framework. OAS 3.1 first-class. Schema dataclass is nearly complete 2020-12 (has `prefix_items`, `unevaluated_properties`, etc.) but missing `$dynamicRef`/`$dynamicAnchor` fields. Small, bounded contribution opportunity. |
 | **aide** | https://github.com/tamasfe/aide | MIT/Apache-2.0 (OSS) | Rust | Unknown | Axum → OpenAPI 3.1. Compositional approach. |
 | **okapi** | https://github.com/GREsau/okapi | MIT (OSS) | Rust | Unknown | Schemars + Rocket → OpenAPI 3.0. |
 | **paperclip** | https://github.com/paperclip-rs/paperclip | MIT/Apache-2.0 (OSS) | Rust | Unknown | Plugin-based for actix-web/axum. |
@@ -210,3 +210,5 @@ Matrix-tested SDK generators (Orval, OpenAPI Generator, Swagger Codegen v3, open
 - **Redocly CLI** (lint + bundle) — passes all fixtures.
 - **Spectral** — passes all fixtures.
 - **openapi-spec-validator** (Python) — passes all fixtures.
+- **libopenapi** (Go) — `$dynamicRef`/`$dynamicAnchor` fully supported since v0.30.1 (Dec 2025).
+- **santhosh-tekuri/jsonschema v6** (Go) — passes full JSON-Schema-Test-Suite for 2020-12.
