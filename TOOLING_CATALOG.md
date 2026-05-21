@@ -162,10 +162,11 @@ Tools that import OpenAPI specs for making API calls, testing, or interactive ex
 
 | Tool | URL | License | `$dynamicRef` Status | Notes |
 |---|---|---|---|---|
-| **Postman** (openapi-to-postman) | https://github.com/postmanlabs/openapi-to-postman | Apache-2.0 (OSS, converter) | Unknown | Dominant API client. Converter supports OAS 2.0/3.0/3.1. Uses internal resolver. |
-| **Insomnia** | https://github.com/Kong/insomnia | Apache-2.0 (OSS) | Unknown | Kong-owned. Limited OAS 3.1 support. |
+| **Postman** (openapi-to-postman) | https://github.com/postmanlabs/openapi-to-postman | Apache-2.0 (OSS, converter) | Partial / Unknown | Converter (`openapi-to-postmanv2`) uses AJV v8 and `oas-resolver-browser` for `$ref` resolution. `oas-resolver-browser` does static `$ref` traversal only; `$dynamicRef` is likely passed through as an opaque property without semantic resolution, resulting in degraded output. AJV v8 is present but likely in draft-07 mode (not `Ajv2020`). No open issues or PRs for `$dynamicRef`/`$dynamicAnchor`. Needs verification against a fixture. |
+| **Insomnia** | https://github.com/Kong/insomnia | Apache-2.0 (OSS) | No support | Uses `@apidevtools/swagger-parser@10.1.1` for OpenAPI parsing, which does not resolve `$dynamicRef`. Also uses AJV v8 but without 2020-12 `$dynamicRef` configuration. OAS 3.1 basic import works (PR #5459), but `$dynamicRef` is silently ignored. Fix requires upstream change in `@apidevtools/swagger-parser`. No open issues for `$dynamicRef`. |
 | **Hoppscotch** | https://github.com/hoppscotch/hoppscotch | MIT (OSS) | Unknown | Web-based API client. OpenAPI import. |
-| **Bruno** | https://github.com/usebruno/bruno | MIT (OSS) | Unknown | Git-based API client. OpenAPI import. |
+| **Bruno** | https://github.com/usebruno/bruno | MIT (OSS) | No support | Git-based API client. OpenAPI import lives in `packages/bruno-converters/src/openapi/openapi-to-bruno.js` (the app-level wrapper at `packages/bruno-app/src/utils/importers/openapi-collection.js` just delegates to it). The converter package has no JSON Schema validation library. The app package uses `jsonschema@^1.5.0` which primarily supports draft-04/06 — no 2020-12 or `$dynamicRef`. Active community; three major OpenAPI PRs merged in early 2026. Best contribution target among the four (custom converter can be modified directly; team receptive to OpenAPI PRs). |
+| **Yaak** | https://github.com/mountain-loop/yaak | MIT (OSS) | No support | OpenAPI importer (`plugins/importer-openapi`) delegates entirely to `openapi-to-postmanv2@^5.8.0`, inheriting all its `$dynamicRef` gaps. Fix either requires a fix in Postman's library first, or Yaak switching to a different parser. Community PRs are policy-restricted to bug fixes; feature changes require an approved feedback item at yaak.app/feedback. |
 | **Schemathesis** | https://github.com/schemathesis/schemathesis | MIT (OSS) | Unknown | Property-based API testing from OpenAPI. OAS 3.1 supported. Uses python-jsonschema. |
 | **HTTPie** | https://httpie.io | BSD-3 (OSS) | Unknown | CLI HTTP client. OpenAPI autocompletion. |
 | **Apidog** | https://apidog.com | Proprietary | Unknown | All-in-one API platform. OAS 3.1 advertised. |
@@ -199,6 +200,10 @@ Matrix-tested SDK generators (Orval, OpenAPI Generator, Swagger Codegen v3, open
 ### Important (degraded output)
 3. **Orval** — parses but emits `unknown` for dynamic ref slots. PR in progress.
 4. **Stoplight Prism** — inherits AJV gaps for mock generation.
+5. **Postman** (`openapi-to-postmanv2`) — AJV v8 present; `oas-resolver-browser` does static `$ref` only; `$dynamicRef` likely treated as opaque passthrough without semantic resolution. Unverified — no fixture test yet.
+6. **Insomnia** — blocked upstream by `@apidevtools/swagger-parser` which does not resolve `$dynamicRef`.
+7. **Yaak** — delegates to `openapi-to-postmanv2`; inherits all Postman converter gaps.
+8. **Bruno** — converter in `packages/bruno-converters/src/openapi/`; app uses `jsonschema` (draft-04/06); `$dynamicRef` silently ignored. Most approachable for a direct fix.
 
 ### Correct implementations
 - **Hyperjump JSON Schema** — reference-correct for all tested patterns.
