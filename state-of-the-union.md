@@ -6,7 +6,7 @@
 - We split the work into two stages: fixture validation first, SDK generator type fidelity second.
 - Three dynamicRef SDK fixtures are currently validator-backed: recursive tree extension, non-identifier schema-key recursion, and multi-parameter generic templates for nested resource graphs.
 - The pagination/generic-wrapper fixture follows the JSON Schema generics pattern referenced from OAI #3601. It passes Hyperjump runtime validation, but AJV 2020 still resolves it incorrectly.
-- The initial SDK snapshot across the original 5 fixtures confirmed: no tested tool preserved `$dynamicRef` type fidelity. Generators either failed to parse specs containing `$dynamicAnchor`, emitted `unknown`/`any`/`Object` for dynamic ref slots, or materialized generic/template fixtures as duplicate concrete types instead of reusable parameterized types.
+- The initial SDK snapshot across the original 5 fixtures confirmed: no tested tool preserved `$dynamicRef` type fidelity. Generators either failed to parse specs containing `$dynamicAnchor`, emitted `unknown`/`any`/`Object` for dynamic ref slots, or materialized generic/template fixtures as duplicate concrete types instead of reusable parameterized types. **Orval v8.13.0** (May 2026) is the first matrix-tested generator to preserve fidelity across all fixtures, emitting generic interfaces and bound type aliases.
 - New finding: OpenAPI Generator fails on named wrapper schemas (`PaginatedUserResponse` → `$ref: PaginatedTemplate`) but **succeeds** on inline binding (response-level `$defs` + `$ref: PaginatedTemplate`). This suggests the parser bug is triggered by schemas that contain `$dynamicAnchor` but are only reachable via `$ref` from another named schema.
 
 ## Fixtures
@@ -100,54 +100,75 @@ SDK generators and type emitters are the first practical priority because broken
 
 Spec producers should still start implementing support now, but they should expose it as an explicit opt-in. Default output should remain compatibility-safe duplicated schemas until major SDK generators and parser/bundler stacks reliably preserve dynamic reference semantics.
 
+## Documentation Renderer Progress
+
+Swagger UI is the de facto OpenAPI documentation UI and the highest-priority documentation renderer target. Current research shows the `$dynamicRef` gap is architectural, not cosmetic.
+
+**Dependency chain**: swagger-ui → swagger-client → ApiDOM (`apidom-reference`). ApiDOM is the dereference engine — it resolves `$ref` during AST traversal but ignores `$dynamicRef` entirely. Swagger UI's JSON Schema 2020-12 plugin renders `$dynamicRef`/`$dynamicAnchor` as static keyword labels, and sample generation falls back to `"string"` when a schema has only `$dynamicRef` (no `type`/`properties`).
+
+**Fix location**: ApiDOM is the correct architectural home for the fix. Adding `$dynamicRef` resolution to the `SchemaElement` visitor in the OpenAPI 3.1 dereference strategy would fix the entire stack with zero changes in swagger-client or swagger-ui — the resolved schema flows through `toValue()` to the UI, which renders concrete `type`/`properties` through its normal paths.
+
+| Tool | Status | Issue | Notes |
+|---|---|---|---|
+| Swagger UI | issue-open | [swagger-ui#10912](https://github.com/swagger-api/swagger-ui/issues/10912) | Outreach issue; fix tracked as ApiDOM work |
+| ApiDOM (upstream) | not-started | [apidom#378](https://github.com/swagger-api/apidom/issues/378) (closed `not_planned`, likely stale) | The dereference engine; needs `$dynamicRef`/`$dynamicAnchor` resolution in `SchemaElement` visitor |
+
+Full analysis: `analysis/swagger-ui.md`. ApiDOM implementation plan: `analysis/apidom.md`.
+
 ## TypeScript SDK Matrix Snapshot (Initial 3-Generator Run)
 
 This section is a compatibility snapshot from the initial focused run against Orval, OpenAPI Generator, and Swagger Codegen v3. The live CI matrix now covers additional TypeScript-oriented tools; use GitHub Actions artifacts and tracking issues for current per-tool status.
 
 ### Generation Results
 
-| Scenario | Orval v8.9.1 | OpenAPI Generator v7.22.0 | Swagger Codegen v3 |
+| Scenario | Orval v8.13.0 | OpenAPI Generator v7.22.0 | Swagger Codegen v3 |
 |---|---|---|---|
-| baseline / 3.1.0–3.1.2 | OK | OK | OK |
-| baseline / 3.2.0 | OK | FAIL | OK |
+| baseline / all versions | OK | OK | OK |
 | generic-schema-binding / 3.1.0–3.1.2 | OK | FAIL | OK |
 | generic-schema-binding / 3.2.0 | OK | FAIL | OK |
-| paginated-response / 3.1.0–3.1.2 | OK | OK | OK |
-| paginated-response / 3.2.0 | OK | FAIL | OK |
-| recursive-category-tree / 3.1.0–3.1.2 | OK | FAIL | OK |
-| recursive-category-tree / 3.2.0 | OK | FAIL | OK |
-| nested-workspace / 3.1.0–3.1.2 | OK | FAIL | OK |
-| nested-workspace / 3.2.0 | OK | FAIL | OK |
+| paginated-response / all versions | OK | OK | OK |
+| api-envelope / all versions | OK | N/A (not in initial run) | N/A |
+| recursive-category-tree / all versions | OK | FAIL | OK |
+| nested-workspace / all versions | OK | FAIL | OK |
+| non-identifier-schema-key / all versions | OK | N/A (not in initial run) | N/A |
 
 **OpenAPI Generator** fails on all fixtures with named `$dynamicAnchor` schemas (e.g., `PaginatedUserResponse` containing `$dynamicAnchor` + `$ref: PaginatedTemplate` in `generic-schema-binding`). But it **succeeds** on the `paginated-response` variant where the `$dynamicAnchor` override lives in the route response schema — the parser bug is triggered by schemas in `components/schemas` that contain `$dynamicAnchor` but are only reachable via `$ref` from another named schema.
 
 ### Typecheck Results
 
-| Scenario | Orval | OpenAPI Generator | Swagger Codegen |
+| Scenario | Orval v8.13.0 | OpenAPI Generator | Swagger Codegen |
 |---|---|---|---|
-| baseline / 3.1.0–3.1.2 | PASS | PASS | FAIL (strict) |
-| baseline / 3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
-| generic-schema-binding / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
-| paginated-response / 3.1.0–3.1.2 | PASS | PASS | FAIL (strict) |
-| recursive-category-tree / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
-| nested-workspace / 3.1.0–3.2.0 | PASS | N/A (gen failed) | FAIL (strict) |
+| baseline / all versions | PASS | PASS | FAIL (strict) |
+| generic-schema-binding / all versions | FAIL (response handler) | N/A (gen failed) | FAIL (strict) |
+| paginated-response / all versions | PASS | PASS | FAIL (strict) |
+| api-envelope / all versions | PASS | N/A | N/A |
+| recursive-category-tree / all versions | PASS | N/A (gen failed) | FAIL (strict) |
+| nested-workspace / all versions | PASS | N/A (gen failed) | FAIL (strict) |
+| non-identifier-schema-key / all versions | PASS | N/A | N/A |
 
 Swagger Codegen strict failures are from missing `@types/jest`/`@types/mocha` and uninitialized `configuration` property — pre-existing codegen quality issues, not dynamicRef-specific.
 
-### DynamicRef Type Fidelity
+Orval `generic-schema-binding` typecheck fails because the response handler in `sample.ts` uses bare `PaginatedTemplate` without type arguments instead of the bound alias `PaginatedUserResponse`/`PaginatedGroupResponse`. The model types themselves are correct.
 
-| Scenario | Orval Output | What dynamicRef resolved to |
+### DynamicRef Type Fidelity (v8.13.0)
+
+Orval v8.13.0 preserves `$dynamicRef` type fidelity across all 7 fixtures and all 4 OAS versions (3.1.0–3.2.0). The generator emits generic interfaces and bound type aliases instead of degrading to `unknown`/`any`.
+
+| Scenario | Orval v8.13.0 Output | Fidelity |
 |---|---|---|
-| generic-schema-binding | `PaginatedTemplate { items: unknown[] }` / `type PaginatedUserResponse = PaginatedTemplate` | Fallback `not: {}` → `unknown[]`; concrete type lost |
-| paginated-response | `PaginatedTemplate { items: unknown[] }` — API returns `PaginatedTemplate` directly | Same: fallback to `unknown[]`, no concrete override |
-| recursive-category-tree | `BaseCategory { children: unknown[] }` / `type LocalizedCategory = BaseCategory & { displayName, locale }` | Recursive override lost → `unknown[]` |
-| nested-workspace | `FolderTemplate { children: (Document \| unknown)[], shortcuts: unknown[] }` / `WorkspaceResource = Document \| unknown` | Partial: `Document` sibling resolved but dynamic slots fallback to `unknown` |
+| generic-schema-binding | `interface PaginatedTemplate<itemType> { items: itemType[]; ... }` / `type PaginatedUserResponse = PaginatedTemplate<User>` / `type PaginatedGroupResponse = PaginatedTemplate<Group>` | PRESERVED |
+| paginated-response | `interface PaginatedTemplate<itemType> { items: itemType[]; ... }` / `type PaginatedUserItems = PaginatedTemplate<User>` (inline binding) | PRESERVED |
+| api-envelope | `interface ApiEnvelopeTemplate<T> { data: T; ... }` / `interface PaginatedTemplate<itemType> { items: itemType[]; ... }` / `type PaginatedUserItems = PaginatedTemplate<User>` / `type UserEnvelope = ApiEnvelopeTemplate<User>` | PRESERVED |
+| recursive-category-tree | `interface BaseCategory { children: BaseCategory[]; ... }` / `type LocalizedCategory = BaseCategory & { displayName, locale }` | PRESERVED |
+| nested-workspace | `interface FolderTemplate<folderType, resourceType> { children: (Document \| folderType)[]; shortcuts: resourceType[]; }` / `type WorkspaceFolder = FolderTemplate<WorkspaceFolder, WorkspaceResource> & { permissions: ... }` / `type WorkspaceResource = Document \| WorkspaceFolder` | PRESERVED |
+| non-identifier-schema-key | `interface BaseCategory { children: BaseCategory[]; ... }` / `type LocalizedCategory = BaseCategory & { displayName, locale }` | PRESERVED |
+| baseline (control) | Concrete `User`, `Group` types — no dynamic refs | PRESERVED |
 
-Orval resolves `$dynamicRef` to the fallback `$dynamicAnchor` definition rather than the concrete override. This produces syntactically valid output but semantically wrong types.
+**Known minor issue**: The response handler in `generic-schema-binding` `sample.ts` uses bare `PaginatedTemplate` without type arguments (should use the bound alias). The model types are correct; this is a response-handler codegen issue, not a dynamic ref resolution issue.
 
 Additionally, even when generators do resolve generic fixtures to concrete item types, the current matrix does not distinguish between **reusable parameterized output** (`PaginatedTemplate<T>`) and **duplicate concrete materialization** (separate `PaginatedUserResponse`/`PaginatedGroupResponse` with identical structure). Going forward, generic fixture validation requires parameterized types when the target language supports generics — concrete materialization is classified as PARTIAL (correct type content, lost type reuse).
 
-Orval PR [#3353](https://github.com/orval-labs/orval/pull/3353) adds opt-in dynamic reference support and covers additional generator-facing cases: self-recursive anchors, generic pagination binding, nested workspace resources, disabled-flag fallback behavior, non-identifier schema-key normalization, and unsupported external `$dynamicRef` fallback. The tracker now models the portable schema cases as fixtures; Orval-specific configuration remains tracked in GitHub issue [#1](https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/issues/1).
+Orval PR [#3353](https://github.com/orval-labs/orval/pull/3353) added `$dynamicRef`/`$dynamicAnchor` support and was released in v8.13.0 (May 2026). Follow-up PR [#3446](https://github.com/orval-labs/orval/pull/3446) fixed `$dynamicAnchor` fallback behavior per the JSON Schema spec. The support is always active when these keywords are present — no configuration flag is needed. The implementation covers: self-recursive anchors, generic pagination/template binding, multi-parameter generic templates, `allOf` bound aliases, partially-bound aliases, inline response bindings, non-identifier schema-key normalization, colliding anchor name deduplication, and external `$dynamicRef` fallback to `unknown`. Tracker issue [#1](https://github.com/aqeelat/openapi-dynamicref-adoption-tracker/issues/1) tracks the remaining response-handler codegen gap where `sample.ts` uses bare generic template references instead of bound aliases.
 
 ## Recommendation
 

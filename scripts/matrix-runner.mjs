@@ -14,7 +14,7 @@ const CONCURRENCY = parseInt(process.env.MATRIX_CONCURRENCY || '8', 10);
 const TIMEOUT_MS = 120_000;
 
 const NPM_PACKAGES = {
-  orval: 'orval@8.9.1',
+  orval: 'orval@8.13.0',
   openapiGenerator: '@openapitools/openapi-generator-cli@2.32.0',
   openapiTypescript: 'openapi-typescript@7.13.0',
   heyApi: '@hey-api/openapi-ts@0.97.1',

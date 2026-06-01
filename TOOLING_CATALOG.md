@@ -78,7 +78,7 @@ These render OpenAPI specs as interactive documentation. They need to display sc
 
 | Tool | URL | License | `$dynamicRef` Status | Notes |
 |---|---|---|---|---|
-| **Swagger UI** | https://github.com/swagger-api/swagger-ui | Apache-2.0 (OSS) | Unknown | Renders OAS 2.0/3.0/3.1. Uses a schema parser internally. Likely treats `$dynamicRef` as unknown keyword. |
+| **Swagger UI** | https://github.com/swagger-api/swagger-ui | Apache-2.0 (OSS) | Partial | Renders OAS 2.0/3.0/3.1/3.2. JSON Schema 2020-12 plugin displays `$dynamicRef`/`$dynamicAnchor` as cosmetic keyword labels but does not semantically resolve dynamic scope. Sample generation ignores `$dynamicRef` — falls back to `"string"` type when no `type`/`properties` are present. Depends on swagger-client → ApiDOM for dereference; ApiDOM does not resolve `$dynamicRef` (issue apidom#378 closed `not_planned`). Fix belongs in ApiDOM; once resolved there, Swagger UI inherits the fix with no code changes. Issue swagger-ui#10912 open. |
 | **Redoc** | https://github.com/Redocly/redoc | MIT (OSS) | Unknown | Renders OAS 2.0/3.0/3.1/3.2. May handle `$dynamicRef` schemas by displaying the fallback. |
 | **Stoplight Elements** | https://github.com/stoplightio/elements | Apache-2.0 (OSS) | Unknown | API documentation component. Uses Spectral internally for validation. |
 | **Scalar** | https://github.com/scalar/scalar | MIT (OSS) | Unknown | Modern API documentation renderer + API client. |
@@ -198,14 +198,14 @@ Matrix-tested SDK generators (Orval, OpenAPI Generator, Swagger Codegen v3, open
 2. **OpenAPI Generator** — cannot parse `$dynamicAnchor` at all. Blocks any spec producer from emitting dynamicRef.
 
 ### Important (degraded output)
-3. **Orval** — parses but emits `unknown` for dynamic ref slots. PR in progress.
-4. **Stoplight Prism** — inherits AJV gaps for mock generation.
-5. **Postman** (`openapi-to-postmanv2`) — AJV v8 present; `oas-resolver-browser` does static `$ref` only; `$dynamicRef` likely treated as opaque passthrough without semantic resolution. Unverified — no fixture test yet.
-6. **Insomnia** — blocked upstream by `@apidevtools/swagger-parser` which does not resolve `$dynamicRef`.
-7. **Yaak** — delegates to `openapi-to-postmanv2`; inherits all Postman converter gaps.
-8. **Bruno** — converter in `packages/bruno-converters/src/openapi/`; app uses `jsonschema` (draft-04/06); `$dynamicRef` silently ignored. Most approachable for a direct fix.
+3. **Stoplight Prism** — inherits AJV gaps for mock generation.
+4. **Postman** (`openapi-to-postmanv2`) — AJV v8 present; `oas-resolver-browser` does static `$ref` only; `$dynamicRef` likely treated as opaque passthrough without semantic resolution. Unverified — no fixture test yet.
+5. **Insomnia** — blocked upstream by `@apidevtools/swagger-parser` which does not resolve `$dynamicRef`.
+6. **Yaak** — delegates to `openapi-to-postmanv2`; inherits all Postman converter gaps.
+7. **Bruno** — converter in `packages/bruno-converters/src/openapi/`; app uses `jsonschema` (draft-04/06); `$dynamicRef` silently ignored. Most approachable for a direct fix.
 
 ### Correct implementations
+- **Orval** (SDK generator) — `$dynamicRef`/`$dynamicAnchor` fully supported since v8.13.0 (May 2026). Emits generic interfaces (`PaginatedTemplate<T>`) and bound aliases (`type Alias = Template<Concrete>`). All 7 fixtures PRESERVED across all 4 OAS versions. PR [#3353](https://github.com/orval-labs/orval/pull/3353).
 - **Hyperjump JSON Schema** — reference-correct for all tested patterns.
 - **Redocly CLI** (lint + bundle) — passes all fixtures.
 - **Spectral** — passes all fixtures.

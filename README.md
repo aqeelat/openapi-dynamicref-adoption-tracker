@@ -6,7 +6,9 @@ This repository is a public compatibility lab for OpenAPI `$dynamicRef` / `$dyna
 
 ## Current Headline
 
-OpenAPI 3.1.x allows JSON Schema 2020-12 schema objects, and OpenAPI 3.2 explicitly recommends dynamic references for generic/template data structures. In the current matrix, tools still either fail to parse `$dynamicAnchor`, generate syntactically valid but semantically degraded output (e.g., `unknown`, `any`, or `Object`), lose dynamic scope resolution for recursive types, or materialize generic/template patterns as duplicate concrete types instead of reusable parameterized types.
+OpenAPI 3.1.x allows JSON Schema 2020-12 schema objects, and OpenAPI 3.2 explicitly recommends dynamic references for generic/template data structures. **Orval v8.13.0** is the first matrix-tested SDK generator to preserve `$dynamicRef` type fidelity across all 7 fixtures and all 4 OAS versions (3.1.0–3.2.0), emitting generic interfaces (`PaginatedTemplate<T>`) and bound aliases (`type PaginatedUserResponse = PaginatedTemplate<User>`) instead of degrading to `unknown`/`any`.
+
+Other matrix tools still either fail to parse `$dynamicAnchor`, generate syntactically valid but semantically degraded output (e.g., `unknown`, `any`, or `Object`), lose dynamic scope resolution for recursive types, or materialize generic/template patterns as duplicate concrete types instead of reusable parameterized types.
 
 Generator and typecheck failures in this repo are **report-only** because those failures are the compatibility data. Fixture validity and generated spec freshness are the CI gates.
 
@@ -42,7 +44,7 @@ See [fixtures/README.md](fixtures/README.md) for validation methodology and runt
 
 The current TypeScript-oriented matrix covers:
 
-- Orval
+- **Orval** — `$dynamicRef` preserved (v8.13.0+)
 - OpenAPI Generator
 - Swagger Codegen v3
 - openapi-typescript
