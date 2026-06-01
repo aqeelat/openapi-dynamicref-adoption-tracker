@@ -13,8 +13,8 @@ Fixing `@apidevtools/json-schema-ref-parser` will not directly fix current Swagg
 | Category | Documentation renderer / API interaction UI |
 | Repository | https://github.com/swagger-api/swagger-ui |
 | Current package observed | `swagger-ui@5.32.6` |
-| Key dependency | `swagger-client@^3.37.4` |
-| Existing issue | https://github.com/swagger-api/swagger-ui/issues/10651 |
+| Key dependency | `swagger-client@^3.37.4` → `@swagger-api/apidom-reference` |
+| Existing issues | https://github.com/swagger-api/swagger-ui/issues/10912 (outreach), https://github.com/swagger-api/swagger-ui/issues/10651 (original report) |
 | Current support assessment | Partial keyword rendering; degraded semantic behavior |
 
 ## Maintenance And Landing Likelihood
@@ -80,9 +80,10 @@ Likely current behavior:
 
 ## Existing Issues And Prior Art
 
-- `swagger-api/swagger-ui#10651`: reports `$dynamicRef` unsupported in Swagger UI / OpenAPI 3.1. The report says schema view renders, while Try It Out ignores `$dynamicRef` and generated examples become null/empty.
-- `swagger-api/apidom#378`: request for OpenAPI 3.1 namespace `$dynamicRef` / `$dynamicAnchor` during dereference. Closed as `not_planned`.
-- `swagger-api/apidom#3697`: notes missing `$dynamicRef` / `$dynamicAnchor` support in ApiDOM OpenAPI 3.1 bundling/dereference.
+- `swagger-api/swagger-ui#10912`: outreach issue requesting `$dynamicRef` support, with analysis of the dependency chain and proposed fix path (ApiDOM dereference engine). Opened 2026-05-30.
+- `swagger-api/swagger-ui#10651`: original community report that `$dynamicRef` is unsupported in Swagger UI / OpenAPI 3.1. Reports schema view renders while Try It Out ignores `$dynamicRef` and generated examples become null/empty. Opened 2025-12-04 by @owjs3901. No maintainer response.
+- `swagger-api/apidom#378`: request for OpenAPI 3.1 namespace `$dynamicRef` / `$dynamicAnchor` during dereference. Opened by maintainer @char0n in 2021. Closed as `not_planned` by SmartBear employee @MichakrawSB in Nov 2025 with zero comments — likely a stale-issue cleanup rather than a technical rejection. This is the canonical upstream gap.
+- `swagger-api/apidom#3697`: notes missing `$dynamicRef` / `$dynamicAnchor` support in ApiDOM OpenAPI 3.1 bundling/dereference. Also closed `not_planned`.
 
 ## Failure Modes To Test
 
@@ -120,17 +121,20 @@ Longer-term path:
 
 ## Upstream Strategy
 
-Start with a concise issue comment or PR referencing `#10651`, with a fixture, screenshot, current vs expected sample output, and one failing test. Avoid framing the request as generic JSON Schema support; focus on concrete OpenAPI 3.1 renderer behavior.
+The fix belongs in ApiDOM (`swagger-api/apidom`), not in swagger-ui. The ApiDOM dereference engine (`apidom-reference` package) resolves `$ref` during tree traversal but ignores `$dynamicRef`. Adding `$dynamicRef` resolution to the `SchemaElement` visitor in the OpenAPI 3.1 dereference strategy would fix the entire stack: ApiDOM → swagger-client (no changes) → swagger-ui (no changes). See `analysis/apidom.md` for the implementation plan.
+
+For the swagger-ui repo specifically, issue #10912 tracks the request and documents the dependency chain. A concise issue comment or PR referencing #10912 and #10651, with a fixture and screenshot, keeps the request visible. The ApiDOM PR is the real work.
 
 ## Open Questions
 
-- Should Swagger UI resolve dynamic refs only for display/sample generation, or should Swagger Client expose a resolved schema tree?
-- How much validation should Try It Out perform? Current request-body validation is shallow, so dynamicRef validation may be a separate feature.
-- Does ApiDOM have a hidden lower-level dynamicRef capability not used by Swagger Client's custom dereference strategy?
+- Should ApiDOM resolve `$dynamicRef` only for local (same-document) anchors first, or support external `$dynamicRef` from the start?
+- The apidom#378 closure was likely stale-issue cleanup. A well-scoped PR may still be accepted — the maintainer originally opened the feature request.
+- Does the OpenAPI 3.2 dereference strategy need the same changes? (Yes — it mirrors 3.1 structurally.)
 
 ## Sources
 
 - https://github.com/swagger-api/swagger-ui
+- https://github.com/swagger-api/swagger-ui/issues/10912
 - https://github.com/swagger-api/swagger-ui/issues/10651
 - https://github.com/swagger-api/swagger-js
 - https://github.com/swagger-api/apidom/issues/378
