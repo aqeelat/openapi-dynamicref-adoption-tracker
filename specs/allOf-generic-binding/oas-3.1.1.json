@@ -1,0 +1,164 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "DynamicRef allOf Generic Binding API",
+    "version": "0.1.0",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.dynamicref.test"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/assets": {
+      "get": {
+        "summary": "List assets",
+        "operationId": "listAssets",
+        "tags": [
+          "Assets"
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetPaged"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error response"
+          }
+        }
+      }
+    },
+    "/groups": {
+      "get": {
+        "summary": "List groups",
+        "operationId": "listGroups",
+        "tags": [
+          "Groups"
+        ],
+        "responses": {
+          "200": {
+            "description": "Group page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupPaged"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error response"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Asset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Group": {
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "Paged": {
+        "$id": "https://example.com/schemas/Paged",
+        "$defs": {
+          "contentType": {
+            "$dynamicAnchor": "contentType",
+            "not": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "total_elements",
+          "total_pages"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$dynamicRef": "#contentType"
+            }
+          },
+          "total_elements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_pages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AssetPaged": {
+        "$id": "https://example.com/schemas/AssetPaged",
+        "allOf": [
+          {
+            "$defs": {
+              "contentType": {
+                "$dynamicAnchor": "contentType",
+                "$ref": "#/components/schemas/Asset"
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/Paged"
+          }
+        ]
+      },
+      "GroupPaged": {
+        "$id": "https://example.com/schemas/GroupPaged",
+        "allOf": [
+          {
+            "$defs": {
+              "contentType": {
+                "$dynamicAnchor": "contentType",
+                "$ref": "#/components/schemas/Group"
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/Paged"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -57,13 +57,17 @@ components:
           type: string
     Paged:
       $id: https://example.com/schemas/Paged
+      $defs:
+        contentType:
+          $dynamicAnchor: contentType
+          not: {}
       type: object
       required: [content, total_elements, total_pages]
       properties:
         content:
           type: array
           items:
-            $dynamicRef: '#pagedContent'
+            $dynamicRef: '#contentType'
         total_elements:
           type: integer
           minimum: 0
@@ -73,20 +77,16 @@ components:
     AssetPaged:
       $id: https://example.com/schemas/AssetPaged
       allOf:
+        - $defs:
+            contentType:
+              $dynamicAnchor: contentType
+              $ref: '#/components/schemas/Asset'
         - $ref: '#/components/schemas/Paged'
-        - $dynamicAnchor: pagedContent
-          properties:
-            content:
-              type: array
-              items:
-                $ref: '#/components/schemas/Asset'
     GroupPaged:
       $id: https://example.com/schemas/GroupPaged
       allOf:
+        - $defs:
+            contentType:
+              $dynamicAnchor: contentType
+              $ref: '#/components/schemas/Group'
         - $ref: '#/components/schemas/Paged'
-        - $dynamicAnchor: pagedContent
-          properties:
-            content:
-              type: array
-              items:
-                $ref: '#/components/schemas/Group'

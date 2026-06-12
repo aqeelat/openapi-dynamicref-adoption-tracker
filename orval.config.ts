@@ -1,6 +1,7 @@
 const scenarios = [
   'baseline-duplicated-pagination',
   'generic-schema-binding',
+  'allOf-generic-binding',
   'paginated-response',
   'api-envelope',
   'recursive-category-tree',

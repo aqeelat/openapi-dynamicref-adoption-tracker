@@ -14,6 +14,7 @@ npm run validate:fixtures
 |---|---|---|
 | `baseline-duplicated-pagination.yaml` | Control case with explicit `PaginatedUserResponse` and `PaginatedGroupResponse` schemas | Confirms a generator can handle ordinary duplicated wrappers before testing `$dynamicRef` |
 | `generic-schema-binding.yaml` | Reusable paginated wrapper with named concrete schemas (`PaginatedUserResponse`, `PaginatedGroupResponse`) | Tests JSON Schema generic-type pattern using `$dynamicRef` / `$dynamicAnchor` — generators must emit reusable parameterized types when the target language supports generics, not duplicate concrete wrappers |
+| `allOf-generic-binding.yaml` | Reusable paged wrapper with concrete schemas binding the generic slot through an `allOf` sibling | Tests the same generic-type pattern as `generic-schema-binding.yaml`, but with the concrete `$defs` binding composed through `allOf` rather than as a sibling of the `$ref` |
 | `paginated-response.yaml` | Reusable paginated wrapper with type binding at the route response level | Tests the same generic pattern but with `$dynamicAnchor` overrides inline in the path operation response — no separate named wrapper schemas |
 | `api-envelope.yaml` | Generic response envelope (`ApiEnvelopeTemplate<T>`) with inline `$defs` binding at the route level — one route binds a single resource, another binds a paginated wrapper | Tests two-level `$dynamicRef` nesting: `ApiEnvelopeTemplate<T>` where `T` is bound inline per route. Generators must emit `ApiEnvelopeTemplate<T>` as a reusable parameterized type. The paginated-list route additionally chains `PaginatedTemplate<User>` as the bound type |
 | `recursive-category-tree.yaml` | Canonical dynamic recursive override | Tests dynamic scope for recursive schemas (`children` should use the active category type) |
@@ -27,6 +28,8 @@ A combined showcase fixture at [`petstore-dynamicref-showcase.yaml`](../petstore
 Generator edge fixtures are top-level SDK matrix scenarios when the behavior is portable across generators. `non-identifier-schema-key.yaml` is one of these: it tests schema-key normalization plus dynamic reference fidelity, not any one tool's internal implementation.
 
 Tool-specific switches, such as Orval's `enableUnstableDynamicRefSupport`, are not modeled as schema fixtures. Track those in the relevant GitHub issue and tool docs instead.
+
+`allOf-generic-binding.yaml` intentionally uses `$defs` to declare the dynamic slot in the template and to bind concrete item types in the derived schemas. An `allOf` schema that references a template containing `$dynamicRef: '#contentType'` without declaring an initial `$dynamicAnchor` or `$anchor` target for `contentType` is not used as a reference fixture here because the dynamic reference does not have a well-defined initial target.
 
 ## Spec Semantics Fixtures
 
@@ -74,6 +77,7 @@ Run via `scripts/validate-openapi.sh` as part of the Stage 1 pipeline. This incl
 |---|---|---|---|---|
 | `baseline-duplicated-pagination.yaml` | Pass | Pass | Pass | Pass |
 | `generic-schema-binding.yaml` | Pass | Pass | Pass | Pass |
+| `allOf-generic-binding.yaml` | Pass | Pass | Pass | Pass |
 | `paginated-response.yaml` | Pass | Pass | Pass | Pass |
 | `api-envelope.yaml` | Pass | Pass | Pass | Pass |
 | `recursive-category-tree.yaml` | Pass | Pass | Pass | Pass |
@@ -93,6 +97,7 @@ Validators: AJV 2020 and Hyperjump 2020-12.
 |---|---|---|---|---|
 | `baseline-duplicated-pagination.yaml` | Pass | Pass | Not tested | Control passes |
 | `generic-schema-binding.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | AJV PR #2615 fixes this |
+| `allOf-generic-binding.yaml` | Valid asset/group pages fail; invalid item cases fail | Not tested | Valid asset/group pages pass; invalid item cases fail | Same generic binding semantics as `generic-schema-binding.yaml`, composed through `allOf` |
 | `paginated-response.yaml` | Valid user/group pages fail; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | Valid user/group pages pass; invalid item cases fail | AJV PR #2615 fixes this |
 | `api-envelope.yaml` | Valid wrapped-user page fails; invalid item cases fail | Not tested | Not tested | Expected same gap as pagination fixtures; AJV PR #2615 should fix this |
 | `recursive-category-tree.yaml` | Valid localized category tree passes; child missing localized fields fails | Pass | Not tested | Runtime check passes |

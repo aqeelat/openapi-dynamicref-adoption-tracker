@@ -25,6 +25,7 @@ const NPM_PACKAGES = {
 const SCENARIOS = [
   'baseline-duplicated-pagination',
   'generic-schema-binding',
+  'allOf-generic-binding',
   'paginated-response',
   'api-envelope',
   'recursive-category-tree',
@@ -35,14 +36,15 @@ const SCENARIOS = [
 const VERSIONS = ['3.1.0', '3.1.1', '3.1.2', '3.2.0'];
 
 const CONCRETE_TYPES = [
-  'User', 'Group', 'LocalizedCategory', 'BaseCategory',
+  'User', 'Group', 'Asset', 'LocalizedCategory', 'BaseCategory',
   'FolderTemplate', 'WorkspaceFolder', 'Document', 'WorkspaceResource',
-  'PaginatedTemplate', 'ApiEnvelopeTemplate', 'PaginatedUserItems',
+  'PaginatedTemplate', 'Paged', 'ApiEnvelopeTemplate', 'PaginatedUserItems',
 ];
 
 const QUALITY_SIGNALS = {
   'baseline-duplicated-pagination': { keyProps: ['items'], expectedTypes: ['User', 'Group'] },
   'generic-schema-binding': { keyProps: ['items'], expectedTypes: ['User', 'Group'], genericTemplates: ['PaginatedTemplate'] },
+  'allOf-generic-binding': { keyProps: ['content'], expectedTypes: ['Asset', 'Group'], genericTemplates: ['Paged'] },
   'paginated-response': { keyProps: ['items'], expectedTypes: ['User', 'Group'], genericTemplates: ['PaginatedTemplate'] },
   'api-envelope': { keyProps: ['data'], expectedTypes: ['User', 'PaginatedUserItems'], genericTemplates: ['ApiEnvelopeTemplate'] },
   'recursive-category-tree': { keyProps: ['children'], expectedTypes: ['LocalizedCategory', 'BaseCategory'] },
