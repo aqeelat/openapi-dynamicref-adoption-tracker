@@ -190,31 +190,33 @@ All assertions can be automated by parsing generated TypeScript with `ts.createS
 
 ## Implementation Plan
 
-### Smallest useful change (Phase 1: recursive self-reference)
+> **Reference:** Orval (sibling package in the `openapi-ts` monorepo) already implements full `$dynamicRef` generic-type emission (PR [#3353](https://github.com/orval-labs/orval/pull/3353)). The resolver architecture should port directly. See [`analysis/orval-reference.md`](orval-reference.md) for the full implementation map. **Emit real generics (`interface PaginatedTemplate<T>`), NOT materialized concrete types.**
 
-Add `$dynamicRef` handling parallel to `$ref` at `src/transform/schema-object.ts:79`:
+### Phase 1: Dynamic-scope resolver (Pattern A — recursive)
 
-```typescript
-if ("$ref" in schemaObject) {
-  return oapiRef(schemaObject.$ref);
-}
-if ("$dynamicRef" in schemaObject) {
-  const resolved = resolveDynamicRef(schemaObject.$dynamicRef, options);
-  return resolved ?? UNKNOWN;
-}
-```
+Port Orval's `buildDynamicScope` + `resolveDynamicRef` from `packages/core/src/resolvers/ref.ts` into openapi-typescript's `src/lib/utils.ts` + `src/transform/schema-object.ts`:
 
-Add `resolveDynamicRef()` to `src/lib/utils.ts` that:
-1. Parses the `$dynamicRef` URI fragment (e.g., `#childType`)
-2. Walks up the schema tree via `options.path` to find the nearest `$dynamicAnchor` with matching name
-3. If anchor has an override (`$ref` or inline schema), resolves and emits that type
-4. Falls back to `unknown` if no binding found
+1. Add `$dynamicRef?: string` and `$dynamicAnchor?: string` to `SchemaObject` in `src/types.ts`.
+2. At `schema-object.ts:79`, add a `$dynamicRef` branch parallel to `$ref`:
+   ```typescript
+   if ("$dynamicRef" in schemaObject) {
+     return resolveDynamicRef(schemaObject.$dynamicRef, options) ?? UNKNOWN;
+   }
+   ```
+3. Implement `resolveDynamicRef(anchorName, context)` per Orval's pattern (`ref.ts:437-521`): look up the anchor in a per-schema scope map, fall back to scanning `components.schemas` for a matching `$dynamicAnchor`, return the type name or `unknown`.
 
-Add `$dynamicRef?: string` and `$dynamicAnchor?: string` to `SchemaObject` in `src/types.ts`.
+This handles recursive trees (`children: BaseCategory[]` instead of `unknown[]`).
 
-### Phase 2: Generic/template type support
+### Phase 2: Generic-template emission (Pattern B — the real generics)
 
-Detect template inheritance (e.g., `PaginatedUserResponse` `$ref`s `PaginatedTemplate` with `$defs` overrides) and substitute concrete types into `$dynamicRef` slots.
+Port Orval's `extractBoundAliasInfo` + `collectGenericParams` from `packages/core/src/resolvers/ref.ts` + `generators/schema-definition.ts`:
+
+1. **Template detection** (`collectGenericParams` equivalent): when a schema's `$defs` has entries with `$dynamicAnchor` + no `$ref` (unbound slots), emit a **generic interface**: `interface PaginatedTemplate<itemType> { items: itemType[]; ... }`. The `$dynamicAnchor` value IS the type-parameter name (Orval's deliberate choice — preserves spec-author intent).
+2. **Binding detection** (`extractBoundAliasInfo` equivalent): when a schema has `$ref` + `$defs` with `$dynamicAnchor` + `$ref` (the binding pattern), emit a **bound type alias**: `type PaginatedUserResponse = PaginatedTemplate<User>`.
+3. **Multi-parameter**: `interface ShelterFolderTemplate<folderType, resourceType>` — iterate `$defs` anchors in order.
+4. **Cycle safety**: port Orval's `hasScopeAffectedDynamicRef` + `context.parents` guards.
+
+**Do NOT materialize concrete types** (emit duplicate concrete classes per binding). Orval proves real generics are achievable and were accepted upstream in the same monorepo.
 
 ### Backwards-compatibility
 

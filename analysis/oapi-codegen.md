@@ -25,6 +25,10 @@ A targeted issue or PR adding `$dynamicRef`-aware code generation to the OAS 3.1
 
 **Contribution landing likelihood:** Medium. Timely window, active maintainer, but blocked on #2336.
 
+## Implementation Direction (post-3.1)
+
+Once #2336 lands, implement `$dynamicRef` using **Go generics** (`type PaginatedTemplate[T any] struct { items []T }`), modeled on Orval's two-pattern architecture (see [`analysis/orval-reference.md`](orval-reference.md)). kin-openapi (oapi-codegen's parser) is **sibling-safe** (✓ — see catalog §1), so Pattern B is implementable. Do NOT default to materialized concrete types — Orval proves generic emission is achievable and accepted upstream.
+
 ## Testing Methodology
 
 See [../TESTING_METHODOLOGIES.md](../TESTING_METHODOLOGIES.md) — SDK Generator methodology.

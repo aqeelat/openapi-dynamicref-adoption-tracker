@@ -23,6 +23,10 @@ Filing a tracking issue now is reasonable. A PR should wait until the OAS 3.1 ba
 
 **Contribution landing likelihood:** Low-to-medium. Active project, receptive maintainers, but `$dynamicRef` requires a complete 3.1 foundation first.
 
+## Implementation Direction (post-3.1)
+
+Once the OAS 3.1 baseline stabilizes, implement `$dynamicRef` using **Go generics** (`type PaginatedTemplate[T any] struct { items []T }`), modeled on Orval's two-pattern architecture (see [`analysis/orval-reference.md`](orval-reference.md)). Do NOT default to materialized concrete types — Orval proves generic emission is achievable.
+
 ## Testing Methodology
 
 See [../TESTING_METHODOLOGIES.md](../TESTING_METHODOLOGIES.md) — SDK Generator methodology.
