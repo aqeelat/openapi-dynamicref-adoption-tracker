@@ -29,6 +29,8 @@ Python generics (e.g., `Response[User]`) are resolved by msgspec and Pydantic v2
 
 Adding `dynamic_ref: str | None` and `dynamic_anchor: str | None` fields to the `Schema` dataclass is a small, bounded, self-contained PR. Litestar is explicitly 2020-12-first, so the gap is clearly unintentional. The change improves spec-completeness for users who hand-write or inject `$dynamicRef` into their OAS output.
 
+**Beyond pass-through:** Litestar could also EMIT `$dynamicAnchor`/`$dynamicRef` from Python generics (the Orval-modeled producer inverse — see [`analysis/orval-reference.md`](orval-reference.md) + `analysis/micronaut-openapi.md`). An opt-in `generic_schema_mode='dynamic'` would preserve TypeVar info through to schema emission instead of resolving it. This is a larger feature but achievable (Litestar has its own schema model, not Pydantic's).
+
 Emission from Python type annotations is a separate, harder problem (requires upstream work in msgspec or Pydantic). The dataclass-completeness fix alone is worthwhile.
 
 **Contribution landing likelihood:** Medium-high. Small diff, clearly fits project goals, active maintainers.
