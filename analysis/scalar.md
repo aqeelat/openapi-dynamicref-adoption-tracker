@@ -258,10 +258,14 @@ This phase does NOT implement semantic dynamic-scope resolution. It ensures `$dy
 
 **Phase 2: Local dynamic-scope resolution**
 
-1. Add a dynamic-scope stack to the bundle traversal in `json-magic/src/bundle/bundle.ts`
-2. When entering a schema with `$dynamicAnchor`, push to the stack
-3. When encountering `$dynamicRef`, resolve against the current stack
-4. This handles local (same-document) `$dynamicRef` resolution
+Port Orval's proven resolver architecture (see [`analysis/orval-reference.md`](orval-reference.md)):
+
+1. Implement `buildDynamicScope` (`ref.ts:372-431`) — a per-schema scope map that records `$dynamicAnchor` bindings (both Pattern A top-level anchors and Pattern B `$defs` + `$ref` bindings). This replaces the ad-hoc "dynamic-scope stack" with Orval's tested, spec-compliant scope walk.
+2. Implement `resolveDynamicRef` (`ref.ts:437-521`) — consults the scope map, falls back to scanning `components.schemas`, returns `unknown` for ambiguity.
+3. **Two patterns** (from Orval):
+   - Pattern A (recursive tree): `$dynamicRef` resolves to the enclosing type → `children: BaseCategory[]`.
+   - Pattern B (generic template): recognize `$ref + $defs` binding → resolve to the concrete bound type → `items: User[]` (not the template's default).
+4. Orval's implementation is TypeScript — directly portable to Scalar's `json-magic` bundler.
 
 **Phase 3: Schema rendering and example generation**
 
