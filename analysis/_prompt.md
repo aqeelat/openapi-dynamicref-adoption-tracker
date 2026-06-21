@@ -6,7 +6,7 @@ Use this prompt with a coding or research agent to analyze a tool from `TOOLING_
 
 Research `<tool-name>` deeply for OpenAPI 3.1+ / JSON Schema 2020-12 `$dynamicRef` and `$dynamicAnchor` support.
 
-Do not implement changes. Use primary sources wherever possible: the tool repository, package manifests, source files, tests, changelog, releases, npm/crates/PyPI/GitHub metadata, and existing issues/PRs.
+Do not implement changes. The tool's repository is cloned at `/tmp/<tool-name>/`. Use it for source exploration: grep for keywords, read source files, check test structure, and verify dependency manifests. Fall back to web sources (GitHub web UI, package registries) for issues, PRs, release history, and content not on the default branch.
 
 Return findings in the structure below.
 
@@ -39,9 +39,11 @@ Return findings in the structure below.
 - Verify the current dependency chain from package manifests and lockfiles. Do not rely on catalog notes; dependencies may have changed.
 - If the repository moved or was renamed, record the current canonical repo and the legacy repo/name.
 - If the tool advertises OpenAPI 3.1/3.2, verify whether it actually preserves JSON Schema 2020-12 dialect or silently downgrades to draft-07/OpenAPI 3.0-style behavior.
+- Classify each upstream dependency: if the tool delegates `$dynamicRef` resolution to it, is that upstream **Correct** (record as "Backed by" in the catalog) or **Partial/No support** (record as "Blocked by")? State the evidence.
 
 ### Current DynamicRef Support
 
+- For runnable tools (generators, validators, linters, parser-bundlers, importers, renderers), every behavioral claim below MUST cite an observed fixture result. Label any uncited claim as an inference and state what observation would confirm it. Do not infer behavior from source control flow when a fixture run is possible.
 - Search source, tests, issues, and PRs for `$dynamicRef`, `$dynamicAnchor`, `$recursiveRef`, `$recursiveAnchor`, `$anchor`, `$id`, and OpenAPI 3.1/3.2.
 - Does the tool parse/preserve the keywords?
 - Does it semantically resolve dynamic scope?
@@ -90,17 +92,21 @@ For spec producers, identify:
 - Look for prior fixes that were reverted and explain why.
 - Identify any forks or alternate implementations with relevant support.
 
-### Test Plan
+### Fixture Results
 
-- Which fixtures from this repo should be used first?
-- What should pass in the baseline fixture?
-- What exact behavior should be asserted for `generic-schema-binding`, `paginated-response`, `api-envelope`, and `recursive-category-tree`?
-- Which assertions can be automated?
-- Which parts require human review?
+- For runnable tools, record the **observed** outcome of running each fixture (not hypothetical). Tools marked "non-runnable (source-first)" state that here and skip the table.
+- Verdicts: `PRESERVED` (keyword kept as-is) / `RESOLVED` (dynamic scope resolved correctly) / `STRIPPED` (keyword dropped silently) / `CRASH` (error/exception) / `UNTYPED` (generator emitted void/unknown/any) / `N/A`.
+- Which parts require human review (e.g., browser DOM render for documentation renderers)? List under **Human Review Needed**.
 - What upstream test framework should a PR use?
+
+| Fixture | OAS version | Observed | Verdict |
+|---|---|---|---|
+| generic-schema-binding | 3.1 | … | … |
 
 ### Implementation Plan
 
+- **Generics are achievable. Do NOT default to "architecturally incompatible / materialize concrete types / docs only."** Orval proves real generic-type emission (`interface PaginatedTemplate<T>`) lands upstream (PR #3353). For generators/producers, read [`analysis/orval-reference.md`](orval-reference.md) and design a real generic-emission path modeled on Orval's two patterns. The "generics are erased" objection usually doesn't apply at the compile-time/reflection stage where producers operate.
+- **Verify `$ref`-sibling preservation before concluding Pattern B is unsupported.** If the tool's parser drops `$ref` siblings (`$defs`, `$dynamicAnchor`, `$id`), Pattern B is *unimplementable* on that parser — not "not implemented." Check the catalog's §1 "Sibling-safe" column. See [`analysis/ref-sibling-preservation.md`](ref-sibling-preservation.md) + IMPLEMENTATION_GUIDE.md "Step 0" for the probe.
 - What is the smallest useful change?
 - Should the first PR preserve/pass through `$dynamicRef` or implement semantic dynamic-scope resolution?
 - Where should dynamic-scope resolution live: parser, schema tree, sample generator, UI component, validator, or producer schema model?
@@ -134,13 +140,13 @@ Write the result as `analysis/<tool-name>.md` using this outline:
 
 ## Current DynamicRef Behavior
 
+## Fixture Results
+
 ## Relevant Source Map
 
 ## Existing Issues And Prior Art
 
 ## Failure Modes To Test
-
-## Test Plan
 
 ## Implementation Plan
 

@@ -160,6 +160,64 @@ class PaginatedUserResponse : PaginatedTemplate<User> {}
 
 ---
 
+## Reference Implementation: Orval (generic-type emission)
+
+**Orval** (`orval-labs/orval`, in the `openapi-ts` monorepo) is the existence proof that real generic-type emission from `$dynamicRef` is achievable and lands upstream (PR [#3353](https://github.com/orval-labs/orval/pull/3353), May 2026). It emits `interface PaginatedTemplate<itemType>` + `type PaginatedUserResponse = PaginatedTemplate<User>`, preserving all 7 fixtures across all 4 OAS versions. **Use it as the blueprint for any generator/producer port.**
+
+The full implementation map lives at [`analysis/orval-reference.md`](analysis/orval-reference.md). Key takeaways for designing a port:
+
+- **Two patterns.** Pattern A (top-level `$dynamicAnchor` → recursive self-reference, no generics needed). Pattern B (`$defs` entry with `$dynamicAnchor` + `$ref` → generic template + bound alias). **Pattern B is what produces generics.** Detect these early in the schema-walk phase.
+- **The `$dynamicAnchor` value is the type-parameter name** (sanitized). No synthesized `T`/`E`.
+- **Per-schema scope map** (`buildDynamicScope`), not a global one — avoids cross-talk.
+- **Cycle safety** via `hasScopeAffectedDynamicRef` (decides inline-vs-reference) + `context.parents` guard.
+- **Limitations to match (or exceed):** no external `$dynamicRef`; single-frame scope approximation (not a true dynamic-scope stack); ambiguous anchors → `unknown`.
+
+**The "generics are architecturally impossible" objection is wrong.** Orval disproves it. Producers (Micronaut, Pydantic, etc.) and generators (kiota, swift-openapi-generator, Speakeasy, Fern) CAN emit real generics — the work is in the CodeDOM/parser/reflection layer, and Orval shows the shape. Do not default to "materialize concrete types" or "docs only."
+
+---
+
+## Step 0: Verify Parser `$ref`-Sibling Preservation
+
+**Before starting any Pattern B (generic-binding) work**, verify that the tool's parser preserves `$ref` siblings. If the parser drops `$defs`/`$dynamicAnchor`/`$id` when it sees `$ref`, Pattern B is **unimplementable** — the generator can never access the binding data, no matter how correct its `$dynamicRef` resolution code is.
+
+### Why this step exists
+
+The Kiota scenario: 6 steps of `$dynamicRef` implementation work landed before discovering that Microsoft.OpenApi's `LoadSchema` drops `$ref` siblings (issue [microsoft/OpenAPI.NET#2895](https://github.com/microsoft/OpenAPI.NET/issues/2895)). Step 7 (Pattern B) could not proceed — not because the generator's code was wrong, but because the parser **could not supply the data**. This step prevents that scenario.
+
+The same root cause affects swagger-core (Java): `$ref`-bearing schemas collapse to reference-only, dropping siblings. PR swagger-parser#2332 (the dereferencer fix) was verified insufficient for this exact reason.
+
+See [`analysis/ref-sibling-preservation.md`](analysis/ref-sibling-preservation.md) for the full cross-cutting analysis.
+
+### Probe
+
+Parse a minimal OpenAPI 3.1 document with `$ref` + siblings:
+
+```yaml
+openapi: 3.1.0
+info: { title: Test, version: "1.0" }
+paths: {}
+components:
+  schemas:
+    Template:
+      type: object
+    Concrete:
+      $id: "https://example.com/Concrete"
+      $defs:
+        anchor:
+          $dynamicAnchor: x
+      $ref: "#/components/schemas/Template"
+```
+
+After parsing, check whether `Concrete` retains its siblings:
+- Does `Concrete.$id` / `Concrete.$defs` / `Concrete.$defs.anchor.$dynamicAnchor` return the sibling values (not `null` / not the `$ref` target's values)?
+- If the parser returns an `OpenApiSchemaReference` (or equivalent) that delegates everything to `Target`, siblings are **dropped** — Pattern B is blocked until the parser is fixed.
+
+**Sibling-safe parsers** (preserve `$ref` siblings for OAS 3.1): `@apidevtools/swagger-parser` v12, `libopenapi`, `kin-openapi`, `OpenAPIKit`, `@redocly/openapi-core`, `python-jsonschema`, `Hyperjump`.
+
+**Sibling-unsafe parsers** (drop `$ref` siblings): `Microsoft.OpenApi` (#2895/#2896), `swagger-core` (collapses `$ref` schemas), `@apidevtools/json-schema-ref-parser` (dereferences all refs).
+
+---
+
 ## Step 1: Check for Existing Work
 
 Before doing anything, search the repo's issues and PRs for prior work on `$dynamicRef` or `$dynamicAnchor`:
