@@ -20,6 +20,27 @@ SDK generators are the first priority because they are where users see broken ou
 
 See [State of the Union](state-of-the-union.md) for the detailed strategy.
 
+## Ecosystem Catalog
+
+Beyond the SDK-generator matrix above, [`TOOLING_CATALOG.md`](TOOLING_CATALOG.md) tracks `$dynamicRef` relevance across the **whole ecosystem** — parsers/resolvers, runtime validators, linters, documentation renderers, spec producers, API clients, and mock servers — with per-tool status, priority, and blocked-by/backed-by dependencies. Each tool has a deep analysis at `analysis/<tool>.md`.
+
+**Methodology:** analyses are **fixtures-first** — runnable tools are run against the fixture suite before source archaeology (see `.opencode/commands/analyze-tool.md`). Producers (non-runnable) are source-first.
+
+**Reference implementation:** [Orval](analysis/orval-reference.md) is the blueprint for generic-type emission. The catalog's guiding principle is that **generic-type emission is achievable** (Orval proves it) — analyses design real Orval-modeled implementation paths, not "materialize concrete types" workarounds.
+
+### Correct implementations (pass the fixtures / official suite)
+- **Generators:** Orval (PR [#3353](https://github.com/orval-labs/orval/pull/3353)).
+- **Validators:** Hyperjump, networknt (Java), jsonschema-rs (Rust), Opis (PHP), Boon (Rust), santhosh-tekuri/jsonschema (Go) — all pass the official JSON-Schema-Test-Suite for draft 2020-12.
+- **Parsers/bundlers:** libopenapi (Go), Redocly CLI, Spectral, openapi-spec-validator.
+- **Linters/diff:** vacuum, oasdiff (both Correct, fixture-verified).
+
+### In-flight upstream work
+- **OpenAPIKit #501** (`mattpolzin/OpenAPIKit`) — adds `$dynamicRef` to the Swift document model. Keystone — unblocks `swift-openapi-generator` #547.
+- **swagger-parser #2332** (`swagger-api/swagger-parser`) — preserve `$dynamicRef`/`$dynamicAnchor` in the OAS 3.1 dereferencer. **Verified insufficient for the generic-binding pattern** (swagger-core collapses `$ref` schemas to reference-only); needs a companion swagger-core `$ref`-sibling fix. See `analysis/swagger-parser.md`.
+- **AJV #2615** — fixes the validator's generic pagination/wrapper resolution gaps. Highest-impact unmerged JS-ecosystem fix.
+
+The prioritized implementation queue (Ready + Blocked) is in `queue.md` (local, gitignored).
+
 ## Fixtures
 
 Top-level fixtures feed the SDK generator matrix:
@@ -58,10 +79,13 @@ Tool package versions are pinned in [package.json](package.json) and generator c
 
 ## Documentation
 
+- **[AGENTS.md](AGENTS.md)** — read this first if you're an agent working in this repo (project guide, methodology, current focus).
+- [Tooling Catalog](TOOLING_CATALOG.md) — ecosystem-wide `$dynamicRef` status matrix (parsers, validators, linters, renderers, generators, producers, clients, mocks).
 - [Runbook](RUNBOOK.md) — reproduction commands, CI behavior, artifacts, and local matrix usage
 - [Fixture Guide](fixtures/README.md) — fixture catalog and validation methodology
 - [State of the Union](state-of-the-union.md) — detailed compatibility snapshot and recommendations
-- [Implementation Guide](IMPLEMENTATION_GUIDE.md) — playbook for adding `$dynamicRef` support to a generator
+- [Implementation Guide](IMPLEMENTATION_GUIDE.md) — playbook for adding `$dynamicRef` support to a generator (incl. Orval reference section)
+- [Orval Reference](analysis/orval-reference.md) — the generic-type-emission blueprint
 - [SDK Generators Catalog](SDK_GENERATORS_CATALOG.md) — generator catalog for future expansion
 
 ## Tracking Work

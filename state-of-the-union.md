@@ -9,6 +9,24 @@
 - The initial SDK snapshot across the original 5 fixtures confirmed: no tested tool preserved `$dynamicRef` type fidelity. Generators either failed to parse specs containing `$dynamicAnchor`, emitted `unknown`/`any`/`Object` for dynamic ref slots, or materialized generic/template fixtures as duplicate concrete types instead of reusable parameterized types. **Orval v8.13.0** (May 2026) is the first matrix-tested generator to preserve fidelity across all fixtures, emitting generic interfaces and bound type aliases.
 - New finding: OpenAPI Generator fails on named wrapper schemas (`PaginatedUserResponse` → `$ref: PaginatedTemplate`) but **succeeds** on inline binding (response-level `$defs` + `$ref: PaginatedTemplate`). This suggests the parser bug is triggered by schemas that contain `$dynamicAnchor` but are only reachable via `$ref` from another named schema.
 
+## Ecosystem-Wide Status (June 2026)
+
+Beyond the SDK-generator matrix, the full ecosystem is tracked in [`TOOLING_CATALOG.md`](TOOLING_CATALOG.md) (parsers, validators, linters, renderers, producers, clients, mocks). Key results from the June 2026 fixtures-first analysis pass:
+
+**Correct (fixture-verified / official-suite pass):**
+- **Validators:** Hyperjump, networknt (Java), jsonschema-rs (Rust), Opis (PHP, all 1227 draft2020-12 tests), Boon (Rust), santhosh-tekuri/jsonschema (Go).
+- **Parsers/bundlers:** libopenapi (Go, v0.30.1+), Redocly CLI, Spectral, openapi-spec-validator, `@apidevtools/swagger-parser` v12 (OAS 3.1, opaque-preserve).
+- **Linters/diff:** vacuum (Correct, libopenapi-backed, deliberate dynamic-scope-keyword handling), oasdiff (Correct, `$dynamicRef`/`$dynamicAnchor` first-class diffable fields).
+
+**In-flight upstream work (yours):**
+- **OpenAPIKit #501** — adds `$dynamicRef` to the Swift document model. Unblocks `swift-openapi-generator` #547.
+- **swagger-parser #2332** — **verified insufficient**: `$ref`-bearing schemas collapse to reference-only (swagger-core OAS-3.0 behavior), dropping override `$dynamicAnchor` siblings before the dereferencer runs. Needs a companion swagger-core `$ref`-sibling preservation fix for 3.1.
+- **AJV #2615** — validator generic-wrapper resolution fix (highest-impact JS-ecosystem gap).
+
+**Recurring root cause:** `$ref`-siblings-ignored (OAS 3.0 semantics carried into 3.1) — breaks the generic-binding pattern in swagger-core, ibm-openapi-validator's `no-$ref-siblings`, and others. OAS 3.1 makes `$ref` siblings valid; tools must stop dropping them.
+
+**Reference implementation:** [Orval](analysis/orval-reference.md) — the generic-type-emission blueprint. Analyses design Orval-modeled full-support paths; "architecturally incompatible / materialize concrete types" is no longer the default.
+
 ## Fixtures
 
 | Fixture | Purpose | Status |
