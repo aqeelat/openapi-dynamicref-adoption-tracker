@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "analyzer": {
+      "description": "Research agent for analyzing OpenAPI/JSON Schema tools for $dynamicRef support. Writes analysis/<tool>.md files.",
+      "mode": "subagent",
+      "model": "zai-coding-plan/glm-5.1"
+    }
+  }
+}
