@@ -1,5 +1,6 @@
 node_modules/
 OUTREACH_TRACKER.md
+queue.md
 .openapi-generator/
 .swagger-codegen/
 openapitools.json
@@ -94,3 +95,4 @@ http-client.private.env.json
 
 # Github Copilot persisted session migrations, see: https://github.com/microsoft/copilot-intellij-feedback/issues/712#issuecomment-3322062215
 .idea/**/copilot.data.migration.*.xml
+scratchpad/
