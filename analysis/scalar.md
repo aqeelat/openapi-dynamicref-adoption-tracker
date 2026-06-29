@@ -2,7 +2,15 @@
 
 ## Summary
 
-Scalar is a very active, widely-adopted OpenAPI platform (15.2k GitHub stars) comprising an API reference renderer, API client, parser, bundler, mock server, and SDK generator. The entire reference resolution stack (`@scalar/json-magic` bundler, `@scalar/workspace-store` resolve helpers) is **`$ref`-only**: `hasRef()` checks exclusively for `$ref`, the `ReferenceObject` type only models `$ref`, and the `SchemaObject` type includes no `$dynamicRef`/`$dynamicAnchor`/`$id`/`$anchor` fields. Scalar already has `$dynamicRef` context from its internal metaschema AJV workaround (PR #8359), but this is strictly for validating OpenAPI metaschemas — user documents with `$dynamicRef` are silently degraded.
+**`$dynamicRef` / `$dynamicAnchor` are now fully supported** as of June 2026. Scalar shipped a comprehensive dynamic-scope resolver across three layers:
+
+1. **Workspace-store resolver** (`helpers/dynamic-ref.ts`) — `isDynamicRef()`, `collectDynamicAnchors()` (resource root + `$defs`, with sibling `$ref` dereference), `resolveDynamicRef()` (outermost-first scope scan). Mirrors Orval's `buildDynamicScope` + `resolveDynamicRef` architecture.
+2. **`$ref`-sibling preservation** (`helpers/get-resolved-ref-deep.ts`) — preserves `$defs`/`$dynamicAnchor` siblings alongside `$ref` (the same sibling-preservation issue documented in `analysis/ref-sibling-preservation.md`). Without this, Pattern B binding data would be dropped.
+3. **Rendering** (`api-reference/.../helpers/dynamic-scope.ts`) — Vue-injected dynamic scope threaded through the schema render tree; `resolveDynamicSchema()` resolves `$dynamicRef` for display. Plus example generation (`get-example-from-schema.ts`) and cycle detection (`schema-cycle.ts`).
+
+Both Pattern A (recursive) and Pattern B (generic template + binding) are handled. The galaxy demo (`packages/galaxy/src/documents/3.1.yaml`) showcases `$dynamicAnchor: itemType` + `$ref` binding for paginated planets. One open follow-up: #9625 (nested `$dynamicAnchor` declarations — a documented v1 limitation).
+
+**Your PR #9439** (the json-magic resolver) was closed (not merged) — the maintainers preferred smaller incremental PRs (#9419 → #9465 → #9483). Your issue #9414 was closed/completed. The Orval-modeled Phase 2 plan in this analysis predicted the architecture; the maintainers' implementation closely matches it.
 
 ## Status Snapshot
 
@@ -10,9 +18,10 @@ Scalar is a very active, widely-adopted OpenAPI platform (15.2k GitHub stars) co
 |---|---|
 | Category | Documentation renderer / API client / parser / mock server |
 | Repository | https://github.com/scalar/scalar |
-| Packages analyzed | `@scalar/api-reference@1.58.0`, `@scalar/api-client@3.8.1`, `@scalar/openapi-parser@0.28.6`, `@scalar/json-magic@0.12.15`, `@scalar/workspace-store@0.53.0`, `@scalar/mock-server@0.10.16`, `@scalar/schemas@0.3.3` |
-| `$dynamicRef` status | **Unsupported** — confirmed via source code audit |
-| Version analyzed | Latest `main` branch (commits through Jun 2, 2026); latest release `2026-05-14` |
+| `$dynamicRef` status | **Correct** — dynamic-scope resolution + sibling preservation + rendering + examples |
+| Implementation PRs | #9419 (keyword typing, Jun 8), #9465 (example resolution, Jun 16), #9483 (rendering, Jun 29) |
+| Open follow-up | #9625 (nested `$dynamicAnchor` declarations) |
+| Your contribution | #9439 (closed — superseded by maintainers' incremental approach); #9414 (issue, closed/completed) |
 
 ## Maintenance And Landing Likelihood
 

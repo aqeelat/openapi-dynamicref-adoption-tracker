@@ -84,7 +84,7 @@ These render OpenAPI specs as interactive documentation. They need to display sc
 | **Swagger UI** | https://github.com/swagger-api/swagger-ui | Apache-2.0 (OSS) | Partial | Medium | ApiDOM | ApiDOM | — | Displays keywords as cosmetic labels; sample generation ignores `$dynamicRef`. Fix belongs in ApiDOM (apidom#378 closed `not_planned`). Issue swagger-ui#10912 open. |
 | **Redoc** | https://github.com/Redocly/redoc | MIT (OSS) | No support | Medium | Redocly core | — | — | Redocly core + openapi-sampler; `$ref`-centric → render/sample degradation. See `analysis/redoc.md`. |
 | **Stoplight Elements** | https://github.com/stoplightio/elements | Apache-2.0 (OSS) | No support | Medium | own | — | — | Forces OAS 3.1 → draft-07 dialect (a blocker); `$ref`-centric sampler. See `analysis/stoplight-elements.md`. |
-| **Scalar** | https://github.com/scalar/scalar | MIT (OSS) | No support | High | own | — | — | `@scalar/json-magic` only checks `$ref`; `SchemaObject` lacks keyword fields. Maintainers aware (PR #8359). Issue #9414 open. High landing likelihood. [Full analysis](analysis/scalar.md) |
+| **Scalar** | https://github.com/scalar/scalar | MIT (OSS) | **Correct** | Done | own | — | — | **`$dynamicRef` fully supported.** Implements dynamic-scope resolution (`workspace-store/src/helpers/dynamic-ref.ts`), `$ref`-sibling preservation (`get-resolved-ref-deep.ts`), rendering via Vue-injected scope (`api-reference/.../dynamic-scope.ts`), and example generation. PRs #9419/#9465/#9483 merged Jun 8–29. Issue #9414 (yours) closed. One open follow-up: #9625 (nested `$dynamicAnchor`). See `analysis/scalar.md`. |
 | **RapiDoc** | https://github.com/mrin9/RapiDoc | MIT (OSS) | No support | Low | @apitools/openapi-parser | — | — | `$ref`-only schema rendering/example-gen. Less active. See `analysis/rapidoc.md`. |
 | **OpenAPI Explorer** | https://github.com/Authress-Engineering/openapi-explorer | Apache-2.0 (OSS) | No support | Medium | json-schema-ref-parser | — | — | `$ref`-only renderer; likely blank/empty degradation. See `analysis/openapi-explorer.md`. |
 
@@ -245,6 +245,7 @@ Matrix-tested SDK generators (Orval, OpenAPI Generator, Swagger Codegen v3, open
 
 ### Correct implementations
 - **Orval** (SDK generator) — `$dynamicRef`/`$dynamicAnchor` fully supported since v8.13.0 (May 2026). Emits generic interfaces (`PaginatedTemplate<T>`) and bound aliases (`type Alias = Template<Concrete>`). All 7 fixtures PRESERVED across all 4 OAS versions. PR [#3353](https://github.com/orval-labs/orval/pull/3353). **Reference implementation for generic-type emission — model for Micronaut/kiota/swift-openapi-generator ports.**
+- **Scalar** (renderer) — `$dynamicRef`/`$dynamicAnchor` fully supported as of June 2026. Dynamic-scope resolver (`dynamic-ref.ts`), `$ref`-sibling preservation (`get-resolved-ref-deep.ts`), Vue-injected scope for rendering (`dynamic-scope.ts`), example generation. PRs #9419/#9465/#9483. Issue #9414 (closed). **Reference implementation for renderer-side dynamic-scope resolution.**
 - **Hyperjump JSON Schema** — reference-correct for all tested patterns.
 - **Redocly CLI** (lint + bundle) — passes all fixtures.
 - **Spectral** — passes all fixtures.
